@@ -70,7 +70,7 @@ function shapeProductRow(row) {
             lng: storeLongitude,
             address: storeAddress,
         } : row.store || null,
-        expiresAt: row.expires_at ?? row.expiresAt ?? null,
+        expiresAt: row.expires_at ? (row.expires_at.includes('Z') ? row.expires_at : row.expires_at.replace(' ', 'T') + 'Z') : (row.expiresAt ?? null),
         createdAt: row.created_at ?? row.createdAt ?? null,
         updatedAt: row.updated_at ?? row.updatedAt ?? null,
     };

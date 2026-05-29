@@ -3,13 +3,6 @@
    ═══════════════════════════════════════════════════ */
 
 async function renderConsumerScanPage() {
-  if (!authManager.isLoggedIn()) {
-    showToast('請先登入以進行掃碼付款！', 'warning');
-    localStorage.setItem('redirect_after_login', '#/consumer/scan');
-    router.navigate('/login');
-    return;
-  }
-
   updateBottomNav('map');
 
   const html = `

@@ -1,11 +1,11 @@
 /**
  * 資料庫連線抽象層
- * 本地開發：sql.js（純 JS SQLite，不需要 C++ 編譯）
- * 未來部署：替換為 Cloudflare D1 binding
+ * 使用 better-sqlite3 (原生 C binding SQLite)
+ * 直接讀寫磁碟，無需手動 save，原子性寫入，安全可靠
  */
 
-import initSqlJs from 'sql.js';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import Database from 'better-sqlite3';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -13,7 +13,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let db = null;
 let dbPath = null;
-let saveTimer = null;
 
 /**
  * 初始化資料庫（必須在啟動時呼叫一次）
@@ -21,7 +20,6 @@ let saveTimer = null;
 export async function initDB() {
     if (db) return db;
 
-    const SQL = await initSqlJs();
     dbPath = process.env.DB_PATH || join(__dirname, '../../data/foodd.db');
 
     // 確保 data 目錄存在
@@ -30,18 +28,23 @@ export async function initDB() {
         mkdirSync(dataDir, { recursive: true });
     }
 
-    // 載入既有資料庫或建立新的
-    if (existsSync(dbPath)) {
-        const buffer = readFileSync(dbPath);
-        db = new SQL.Database(buffer);
-        console.log('[DB] 載入既有資料庫:', dbPath);
-    } else {
-        db = new SQL.Database();
+    const isNew = !existsSync(dbPath);
+
+    // better-sqlite3 自動建立或載入既有資料庫
+    db = new Database(dbPath);
+
+    if (isNew) {
         console.log('[DB] 建立新資料庫:', dbPath);
+    } else {
+        console.log('[DB] 載入既有資料庫:', dbPath);
     }
 
-    // 啟用外鍵約束
-    db.run('PRAGMA foreign_keys = ON;');
+    // 啟用效能最佳化 PRAGMA
+    db.pragma('journal_mode = WAL');          // WAL 模式：並發讀寫效能提升 5-10 倍
+    db.pragma('synchronous = NORMAL');        // 在 WAL 模式下 NORMAL 已足夠安全
+    db.pragma('foreign_keys = ON');           // 啟用外鍵約束
+    db.pragma('cache_size = -8000');          // 8MB 快取 (負數 = KB)
+    db.pragma('busy_timeout = 5000');         // 鎖定等待 5 秒
 
     return db;
 }
@@ -57,27 +60,18 @@ export function getDB() {
 }
 
 /**
- * 儲存資料庫到磁碟（自動防抖，避免頻繁寫入）
+ * 儲存資料庫到磁碟（相容性保留，better-sqlite3 自動寫入不需手動 save）
  */
 export function saveDB() {
-    if (!db || !dbPath) return;
-
-    // 防抖：500ms 內多次呼叫只執行一次
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-        const data = db.export();
-        writeFileSync(dbPath, Buffer.from(data));
-    }, 500);
+    // better-sqlite3 直接寫入磁碟，不需要手動存檔
+    // 此函式保留以維持 API 相容性
 }
 
 /**
- * 強制立即儲存（用於關閉時）
+ * 強制立即儲存（相容性保留）
  */
 export function saveDBSync() {
-    if (!db || !dbPath) return;
-    if (saveTimer) clearTimeout(saveTimer);
-    const data = db.export();
-    writeFileSync(dbPath, Buffer.from(data));
+    // better-sqlite3 直接寫入磁碟，不需要手動存檔
 }
 
 /**
@@ -86,8 +80,7 @@ export function saveDBSync() {
 export function initSchema() {
     const database = getDB();
     const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf-8');
-    database.run(schema);
-    saveDB();
+    database.exec(schema);
     console.log('[DB] 資料表初始化完成');
 }
 
@@ -97,11 +90,13 @@ export function initSchema() {
 export function loadSeed() {
     const database = getDB();
     const seed = readFileSync(join(__dirname, 'seed.sql'), 'utf-8');
-    // sql.js 不支援一次執行多條 SQL，需要逐條執行
+
+    // better-sqlite3 的 exec() 支援一次執行多條 SQL（以分號分隔）
+    // 但為了相容 INSERT OR IGNORE 的錯誤容忍，仍逐條執行
     const statements = seed.split(';').filter(s => s.trim());
     for (const stmt of statements) {
         try {
-            database.run(stmt + ';');
+            database.exec(stmt + ';');
         } catch (err) {
             // INSERT OR IGNORE 失敗時忽略（重複資料）
             if (!err.message.includes('UNIQUE constraint')) {
@@ -109,7 +104,6 @@ export function loadSeed() {
             }
         }
     }
-    saveDB();
     console.log('[DB] 測試資料載入完成');
 }
 
@@ -121,27 +115,17 @@ export function query(sql, params = []) {
 
     if (sql.trimStart().toUpperCase().startsWith('SELECT')) {
         const stmt = database.prepare(sql);
-        stmt.bind(params);
-
-        const results = [];
-        while (stmt.step()) {
-            results.push(stmt.getAsObject());
-        }
-        stmt.free();
+        const results = stmt.all(...params);
         return { results };
     } else {
-        database.run(sql, params);
-        const changes = database.getRowsModified();
-        // 取得 last insert rowid
-        const lastIdResult = database.exec('SELECT last_insert_rowid() as id');
-        const lastId = lastIdResult.length > 0 ? lastIdResult[0].values[0][0] : 0;
+        const stmt = database.prepare(sql);
+        const info = stmt.run(...params);
 
-        saveDB();
         return {
             results: [],
             meta: {
-                changes,
-                last_row_id: lastId
+                changes: info.changes,
+                last_row_id: info.lastInsertRowid
             }
         };
     }
@@ -151,8 +135,10 @@ export function query(sql, params = []) {
  * 取得單筆資料
  */
 export function queryFirst(sql, params = []) {
-    const { results } = query(sql, params);
-    return results.length > 0 ? results[0] : null;
+    const database = getDB();
+    const stmt = database.prepare(sql);
+    const row = stmt.get(...params);
+    return row || null;
 }
 
 /**
@@ -160,16 +146,8 @@ export function queryFirst(sql, params = []) {
  */
 export function transaction(fn) {
     const database = getDB();
-    database.run('BEGIN TRANSACTION;');
-    try {
-        const result = fn();
-        database.run('COMMIT;');
-        saveDB();
-        return result;
-    } catch (err) {
-        database.run('ROLLBACK;');
-        throw err;
-    }
+    const runInTransaction = database.transaction(fn);
+    return runInTransaction();
 }
 
 /**
@@ -177,7 +155,12 @@ export function transaction(fn) {
  */
 export function closeDB() {
     if (db) {
-        saveDBSync();
+        // WAL checkpoint: 確保所有 WAL 日誌寫回主資料庫檔案
+        try {
+            db.pragma('wal_checkpoint(TRUNCATE)');
+        } catch (e) {
+            // 忽略 checkpoint 錯誤
+        }
         db.close();
         db = null;
     }

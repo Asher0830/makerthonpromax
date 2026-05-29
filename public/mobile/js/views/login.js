@@ -8,7 +8,7 @@ async function renderLoginPage() {
     if (authManager.isStoreOwner()) {
       router.navigate('/store/dashboard');
     } else {
-      router.navigate('/consumer/map');
+      router.navigate('/consumer/home');
     }
     return;
   }
@@ -20,7 +20,7 @@ async function renderLoginPage() {
     <div class="login-page">
       <div class="login-logo">
         <div class="logo-icon" style="font-family:'Outfit',sans-serif; font-weight:800; font-size:2rem; letter-spacing:-1.5px; color:var(--primary-color);">SFood</div>
-        <h1 class="logo-title">惜食救援</h1>
+        <h1 class="logo-title">refuse to waste</h1>
         <p class="logo-subtitle">讓美食不被浪費</p>
       </div>
 
@@ -105,7 +105,7 @@ async function renderLoginPage() {
       } else if (authManager.isStoreOwner()) {
         router.navigate('/store/dashboard');
       } else {
-        router.navigate('/consumer/map');
+        router.navigate('/consumer/home');
       }
     } catch (err) {
       hideLoading();

@@ -15,6 +15,7 @@ import machineRoutes from './routes/machines.js';
 import orderRoutes from './routes/orders.js';
 import paymentRoutes from './routes/payment.js';
 import debugRoutes from './routes/debug.js';
+import petRoutes from './routes/pet.js';
 
 const app = new Hono();
 
@@ -33,6 +34,7 @@ app.route('/api/v1/products', productRoutes);
 app.route('/api/v1/machines', machineRoutes);
 app.route('/api/v1/orders', orderRoutes);
 app.route('/api/v1/payment', paymentRoutes);
+app.route('/api/v1/pet', petRoutes);
 // [C5 FIX] Debug 路由僅在非生產環境掛載
 if (process.env.NODE_ENV !== 'production') {
     app.route('/api/v1/debug', debugRoutes);

@@ -83,6 +83,14 @@ async function renderStoreDashboardPage() {
         }).join('')
         : '<div class="empty-state">還沒有訂單</div>';
 
+    window.openStoreDashboardScanner = function() {
+        if (typeof window.openStoreScanner === 'function') {
+            window.openStoreScanner(() => {
+                renderStoreDashboardPage();
+            });
+        }
+    };
+
     const html = `
         <div class="page-header">
             <h1>店家主頁</h1>
@@ -110,11 +118,16 @@ async function renderStoreDashboardPage() {
                 </div>
             </div>
 
-            <div class="quick-actions">
-                <button class="quick-action-btn action-primary" onclick="router.navigate('/store/add-item')">
+            <div class="quick-actions" style="grid-template-columns: 1fr; gap: 12px; margin-bottom: 12px;">
+                <button class="quick-action-btn action-primary" onclick="openStoreDashboardScanner()" style="padding: 16px 20px; font-size: 1.05rem; flex-direction: row; justify-content: center; align-items: center; gap: 10px; border-radius: 12px; background: linear-gradient(135deg, var(--primary) 0%, #15803d 100%); border: none; box-shadow: var(--shadow-md); color: #fff; width: 100%;">
+                    <span style="font-size: 1.35rem;">📷</span> 掃碼核銷 (Scan QR Code)
+                </button>
+            </div>
+            <div class="quick-actions" style="grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+                <button class="quick-action-btn action-secondary" onclick="router.navigate('/store/add-item')" style="padding: 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid rgba(0, 128, 85, 0.2); background: rgba(0, 128, 85, 0.04); color: var(--primary);">
                     上架商品
                 </button>
-                <button class="quick-action-btn action-secondary" onclick="router.navigate('/store/pair')">
+                <button class="quick-action-btn action-secondary" onclick="router.navigate('/store/pair')" style="padding: 14px; font-size: 0.95rem; border-radius: 12px; border: 1px solid rgba(0, 128, 85, 0.2); background: rgba(0, 128, 85, 0.04); color: var(--primary);">
                     配對機台
                 </button>
             </div>

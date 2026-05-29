@@ -8,9 +8,11 @@ async function renderRegisterPage() {
 
   const html = `
     <div class="login-page">
-      <div class="register-header">
-        <a href="#/login" class="back-arrow">←</a>
-        <h2 class="register-title">建立消費者帳號</h2>
+      <div class="register-header" style="display: flex; align-items: center; gap: 16px; margin-bottom: 28px; width: 100%; max-width: 400px; justify-content: flex-start; text-align: left;">
+        <a href="#/login" class="back-arrow" style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: var(--accent-light, rgba(0, 128, 85, 0.06)); border: 1px solid var(--border); color: var(--text); font-size: 1.25rem; font-weight: 700; text-decoration: none; transition: all 0.2s ease; box-shadow: var(--shadow-sm); cursor: pointer; flex-shrink: 0;" title="返回登入">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </a>
+        <h2 class="register-title" style="font-size: 1.5rem; font-weight: 800; color: var(--text); margin: 0; letter-spacing: -0.5px;">建立消費者帳號</h2>
       </div>
 
       <form class="login-form" id="register-form" onsubmit="return false;">
@@ -101,7 +103,7 @@ async function renderRegisterPage() {
 
       hideLoading();
 
-      router.navigate('/consumer/map');
+      router.navigate('/consumer/home');
     } catch (err) {
       hideLoading();
       submitBtn.disabled = false;

@@ -1,0 +1,888 @@
+/* ==========================================================================
+   惜食小幫手 — 虛擬寵物養成系統 Impeccable Neo Kinpaku Design System
+   ========================================================================== */
+
+/* 匯入 Impeccable 專屬 Google 雙字型家族：Alumni Sans, Alumni Sans Pinstripe, Albert Sans */
+@import url('https://fonts.googleapis.com/css2?family=Albert+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Alumni+Sans+Pinstripe&family=Alumni+Sans:wght@300;400;500;600;700&family=SF+Mono-Regular&display=swap');
+
+:root {
+    /* Brand Anchors */
+    --kinpaku-gold: oklch(84% 0.19 80.46);       /* 主品牌金箔 */
+    --verdigris-patina: oklch(70% 0.12 188);     /* 銅綠狀態綠 */
+    
+    /* Surfaces */
+    --lacquer-black: oklch(7% 0.006 95);         /* 頁面漆黑底色 */
+    --lacquer-deep: oklch(4% 0.004 95);          /* 最深內凹背景 */
+    --raised-lacquer: oklch(11% 0.006 95);       /* 面板與輸入框浮出 */
+    --graphite: oklch(15% 0.008 95);             /* 停用狀態灰色 */
+    --graphite-2: oklch(19% 0.008 95);           /* 較淺灰 */
+    
+    /* Text */
+    --champagne: oklch(91% 0 0);                 /* 標題香檳白 */
+    --text-warm: oklch(88% 0 0);                 /* 內文溫潤白 */
+    --text-muted: oklch(72% 0 0);                /* 說明副文本 */
+    --text-faint: oklch(62% 0 0);                /* 微弱字體 */
+    --text-mute-deep: oklch(52% 0 0);            /* 禁用字體 */
+    
+    /* Gold Ramp */
+    --kinpaku-pale: oklch(86% 0.07 84);          /* 懸停提亮金 */
+    --kinpaku-rich: oklch(77% 0.13 82);          /* 點擊金 */
+    --kinpaku-deep: oklch(61% 0.085 78);         /* 框線金 */
+    --gold-hairline: oklch(78% 0 0 / 0.16);      /* 預設極細線 */
+    --gold-hairline-strong: oklch(74% 0.09 82 / 0.6); /* 啟動線 */
+    
+    /* Patina Ramp */
+    --patina-pale: oklch(82% 0.07 188);          /* 懸停綠 */
+    --patina-deep: oklch(49% 0.08 188);          /* 深色 Patina 綠 */
+    
+    /* State */
+    --vermilion-warning: oklch(58% 0.15 35);     /* 朱紅警告色 */
+    
+    /* Fonts */
+    --font-wordmark: "Alumni Sans", sans-serif;
+    --font-display: "Alumni Sans Pinstripe", "Alumni Sans", sans-serif;
+    --font-title: "Albert Sans", system-ui, sans-serif;
+    --font-body: "Albert Sans", system-ui, sans-serif;
+    --font-mono: "SFMono-Regular", Consolas, monospace;
+}
+
+/* 基礎重設 */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: #020304;
+    font-family: var(--font-body);
+    color: var(--text-warm);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+/* ==========================================================================
+   手機模擬器完美外框 (Impeccable Neo Kinpaku Simulator)
+   ========================================================================== */
+.app-container {
+    perspective: 1200px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100vh;
+    background: radial-gradient(circle at 50% 50%, var(--raised-lacquer) 0%, #020304 100%);
+}
+
+.phone-frame {
+    position: relative;
+    width: 375px;
+    height: 812px;
+    background: var(--lacquer-black);
+    border: 8px solid #1e293b;
+    border-radius: 40px;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.85), 0 0 40px rgba(139, 92, 246, 0.05);
+    overflow: hidden;
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.phone-notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 140px;
+    height: 20px;
+    background: #1e293b;
+    border-bottom-left-radius: 14px;
+    border-bottom-right-radius: 14px;
+    z-index: 1000;
+}
+
+.phone-screen {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--lacquer-black);
+    overflow: hidden;
+}
+
+/* 行動端自適應 */
+@media (max-width: 450px) {
+    body {
+        background-color: var(--lacquer-black);
+    }
+    .app-container {
+        background: none;
+    }
+    .phone-frame {
+        width: 100vw;
+        height: 100vh;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+    .phone-notch {
+        display: none;
+    }
+}
+
+/* ==========================================================================
+   畫面切換 (Screen Transitions)
+   ========================================================================== */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.98);
+    transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+                transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+                visibility 0.4s;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+}
+
+.screen.active {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+    z-index: 20;
+}
+
+/* ==========================================================================
+   1. 認證登入頁面 (Impeccable Auth Screen)
+   ========================================================================== */
+#screen-auth {
+    justify-content: center;
+    align-items: center;
+    padding: 30px;
+    background: radial-gradient(circle at 50% 25%, rgba(212, 163, 89, 0.08) 0%, rgba(7, 9, 14, 0) 70%),
+                var(--lacquer-black);
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.brand-logo {
+    font-size: 72px;
+    filter: drop-shadow(0 0 15px var(--kinpaku-gold));
+    margin-bottom: 12px;
+    animation: floatLogo 5s ease-in-out infinite;
+}
+
+@keyframes floatLogo {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+.auth-header h1 {
+    font-family: var(--font-display);
+    font-size: 46px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--champagne);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.auth-header p {
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+}
+
+.auth-card {
+    width: 100%;
+    background: var(--raised-lacquer);
+    border: 1px solid var(--gold-hairline);
+    border-radius: 6px; /* Impeccable constraint: small radii */
+    padding: 28px 24px;
+    box-shadow: var(--shadow-premium);
+    position: relative;
+}
+
+/* 金箔裂縫幾何微裝飾 */
+.auth-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 30px;
+    width: 1px;
+    height: 10px;
+    background: var(--kinpaku-gold);
+    opacity: 0.7;
+}
+
+.input-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+.input-group input {
+    background: var(--lacquer-deep);
+    border: 1px solid var(--gold-hairline);
+    border-radius: 4px;
+    padding: 14px 16px;
+    color: var(--champagne);
+    font-family: var(--font-body);
+    font-size: 15px;
+    transition: all 0.25s ease;
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: var(--gold-hairline-strong);
+    box-shadow: 0 0 15px rgba(212, 163, 89, 0.1);
+}
+
+.auth-tips {
+    margin-top: 15px;
+    font-size: 11px;
+    color: var(--text-faint);
+    text-align: center;
+    line-height: 1.5;
+}
+
+/* ==========================================================================
+   精緻按鈕 (Impeccable Primitives)
+   ========================================================================== */
+.btn {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    outline: none;
+    font-family: var(--font-title);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 14px;
+    border-radius: 2px; /* Impeccable: --rounded-xs */
+    color: var(--lacquer-deep);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    letter-spacing: 0.05em;
+}
+
+.btn-primary {
+    background: var(--kinpaku-gold);
+    color: var(--lacquer-deep);
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background: var(--kinpaku-pale);
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+/* ==========================================================================
+   2. 遊戲主頁面 (Impeccable Game Screen)
+   ========================================================================== */
+.game-header {
+    height: 64px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    background: var(--lacquer-deep);
+    border-bottom: 1px solid var(--gold-hairline);
+    z-index: 100;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.user-icon {
+    font-size: 14px;
+}
+
+.username {
+    font-family: var(--font-wordmark);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--champagne);
+    text-transform: uppercase;
+}
+
+.points-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(212, 163, 89, 0.08);
+    border: 1px solid var(--gold-hairline-strong);
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--kinpaku-gold);
+}
+
+/* PixiJS 渲染容器 - 防止內容過大推開 Flexbox */
+.canvas-container {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    background: var(--lacquer-deep);
+    overflow: hidden;
+    min-height: 0;
+}
+
+#pet-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.game-loader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--lacquer-black);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+    gap: 15px;
+    transition: opacity 0.4s ease, visibility 0.4s;
+}
+
+.game-loader.hide {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* 全局彈窗遮罩基礎樣式 (Impeccable Blur Overlays) */
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(4, 6, 8, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.game-loader p {
+    font-family: var(--font-wordmark);
+    letter-spacing: 0.15em;
+    font-size: 14px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+/* 首次建立寵物對話框 */
+.creator-card {
+    width: 85%;
+    max-width: 320px;
+    background: var(--raised-lacquer);
+    border: 1px solid var(--gold-hairline-strong);
+    border-radius: 4px;
+    padding: 28px 20px;
+    text-align: center;
+    box-shadow: var(--shadow-premium);
+}
+
+.creator-card h2 {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--champagne);
+    margin-bottom: 6px;
+}
+
+.creator-card p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+
+.creator-preview {
+    font-size: 80px;
+    margin-bottom: 20px;
+}
+
+/* 狀態 HUD 區區 */
+.status-hud {
+    background: var(--lacquer-black);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 1px solid var(--gold-hairline);
+}
+
+.status-bar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.bar-label strong {
+    color: var(--champagne);
+    font-size: 10px;
+}
+
+.bar-track {
+    height: 8px;
+    background: var(--lacquer-deep);
+    border-radius: 2px;
+    overflow: hidden;
+    border: 1px solid var(--gold-hairline);
+}
+
+.bar-fill {
+    height: 100%;
+    border-radius: 1px;
+    width: 0%;
+}
+
+.bar-fill.fullness {
+    background: var(--color-fullness);
+    box-shadow: 0 0 10px rgba(255, 61, 0, 0.2);
+}
+
+.bar-fill.happiness {
+    background: var(--color-happiness);
+    box-shadow: 0 0 10px rgba(0, 176, 255, 0.2);
+}
+
+.bar-fill.exp {
+    background: var(--color-exp);
+    box-shadow: 0 0 10px rgba(170, 0, 255, 0.2);
+}
+
+/* ==========================================================================
+   底部 Dock 導覽列 (Impeccable Minimal Dock)
+   ========================================================================== */
+.action-dock {
+    height: 68px;
+    background: var(--lacquer-deep);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 1px solid var(--gold-hairline);
+    padding-bottom: 8px;
+}
+
+.dock-btn {
+    background: none;
+    border: none;
+    outline: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 65px;
+    height: 52px;
+}
+
+.dock-btn:hover {
+    color: var(--kinpaku-gold);
+}
+
+.dock-btn:active {
+    transform: scale(0.95);
+}
+
+.dock-icon {
+    font-size: 20px;
+    margin-bottom: 3px;
+    transition: transform 0.2s ease;
+}
+
+.dock-text {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+/* ==========================================================================
+   3. 彈窗與抽屜樣式 (Kinpaku Bottom Drawers)
+   ========================================================================== */
+.bottom-drawer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: 80%;
+    background: var(--raised-lacquer);
+    border-top-left-radius: 8px; /* Impeccable: sm rounded */
+    border-top-right-radius: 8px;
+    border-top: 1px solid var(--gold-hairline-strong);
+    padding: 20px 20px 28px 20px;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: var(--shadow-premium);
+    z-index: 210;
+}
+
+.modal-overlay.active .bottom-drawer {
+    transform: translateY(0);
+}
+
+.drawer-handle {
+    width: 36px;
+    height: 3px;
+    background: var(--gold-hairline);
+    border-radius: 2px;
+    margin: -10px auto 14px auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--gold-hairline);
+    padding-bottom: 10px;
+}
+
+.modal-header h2 {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--champagne);
+    letter-spacing: 0.02em;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.btn-close:hover {
+    color: var(--kinpaku-gold);
+}
+
+/* 互動卡片選擇網格 */
+.options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+#modal-play .options-grid {
+    grid-template-columns: 1fr 1fr;
+}
+
+#modal-play .option-card:last-child {
+    grid-column: span 2;
+}
+
+.option-card {
+    background: var(--lacquer-deep);
+    border: 1px solid var(--gold-hairline);
+    border-radius: 4px;
+    padding: 16px 12px;
+    text-align: center;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.option-card:hover {
+    border-color: var(--gold-hairline-strong);
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.option-icon {
+    font-size: 32px;
+    margin-bottom: 6px;
+}
+
+.option-card h3 {
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--champagne);
+    margin-bottom: 4px;
+}
+
+.option-desc {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.option-cost {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--kinpaku-gold);
+    margin-top: auto;
+    margin-bottom: 10px;
+    background: rgba(212, 163, 89, 0.06);
+    padding: 3px 8px;
+    border-radius: 2px;
+}
+
+.option-cost.free {
+    color: var(--verdigris-patina);
+    background: rgba(0, 230, 118, 0.06);
+}
+
+.btn-action-buy {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 8px;
+    border-radius: 2px;
+    background: var(--kinpaku-gold);
+    color: var(--lacquer-deep);
+}
+
+/* ==========================================================================
+   裝飾品商店頁面 (Impeccable Shop Layout)
+   ========================================================================== */
+.shop-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--lacquer-deep);
+    padding: 4px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    border: 1px solid var(--gold-hairline);
+}
+
+.tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-muted);
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 8px 0;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+    background: var(--raised-lacquer);
+    color: var(--kinpaku-gold);
+    border: 1px solid var(--gold-hairline-strong);
+}
+
+.shop-content-wrapper {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.shop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding-bottom: 20px;
+}
+
+.shop-item-card {
+    background: var(--lacquer-deep);
+    border: 1px solid var(--gold-hairline);
+    border-radius: 4px;
+    padding: 14px 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.shop-item-card:hover {
+    border-color: var(--gold-hairline-strong);
+}
+
+.shop-item-card.locked {
+    opacity: 0.6;
+}
+
+.lock-overlay {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 500;
+    color: var(--vermilion-warning);
+    background: rgba(248, 113, 113, 0.06);
+    padding: 2px 5px;
+    border-radius: 2px;
+}
+
+.shop-item-sprite-preview {
+    font-size: 28px;
+    margin-bottom: 6px;
+}
+
+.shop-item-card h3 {
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--champagne);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.shop-item-card p {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    line-height: 1.3;
+    height: 26px;
+    overflow: hidden;
+}
+
+.shop-item-cost {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--kinpaku-gold);
+    margin-top: auto;
+    margin-bottom: 10px;
+}
+
+.shop-item-cost.owned {
+    color: var(--verdigris-patina);
+}
+
+.btn-shop-action {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 2px;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.2s ease;
+}
+
+.btn-shop-action.buy {
+    background: var(--kinpaku-gold);
+    color: var(--lacquer-deep);
+}
+
+.btn-shop-action.buy.disabled {
+    background: var(--graphite);
+    color: var(--text-mute-deep);
+    cursor: not-allowed;
+}
+
+.btn-shop-action.equip {
+    background: var(--verdigris-patina);
+    color: var(--lacquer-deep);
+}
+
+.btn-shop-action.unequip {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--champagne);
+    border: 1px solid var(--gold-hairline);
+}
+
+/* ==========================================================================
+   極緻 Toast 提示
+   ========================================================================== */
+.toast {
+    position: absolute;
+    bottom: 95px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--raised-lacquer);
+    border: 1px solid var(--gold-hairline-strong);
+    color: var(--champagne);
+    padding: 10px 18px;
+    border-radius: 2px;
+    font-family: var(--font-title);
+    font-size: 12px;
+    font-weight: 500;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: var(--shadow-premium);
+    white-space: nowrap;
+}
+
+.toast.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}

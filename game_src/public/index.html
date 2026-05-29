@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>惜食小幫手 — 虛擬寵物養成系統</title>
+    <meta name="description" content="惜食整合系統附加小遊戲 — 透過救助美味食物累積點數，餵養您獨一無二的惜食寵物！">
+    <!-- Google Fonts: Outfit, Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- CSS 樣式 -->
+    <link rel="stylesheet" href="./mobile/css/style.css">
+    <!-- GSAP 動畫庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <!-- PixiJS v8 核心 -->
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@8.1.1/dist/pixi.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 桌面版模擬器包裝器 (在行動端會自動鋪滿全螢幕) -->
+        <div class="phone-frame">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+                
+                <!-- ============================================
+                     1. 認證登入頁面 (Auth Screen)
+                     ============================================ -->
+                <div id="screen-auth" class="screen active">
+                    <div class="auth-header">
+                        <div class="brand-logo">🍙</div>
+                        <h1>惜食養成系統</h1>
+                        <p>拯救美味食物，養育可愛寵物</p>
+                    </div>
+                    <div class="auth-card">
+                        <div class="input-group">
+                            <label for="auth-username">使用者名稱</label>
+                            <input type="text" id="auth-username" placeholder="請輸入您的使用者名稱" autocomplete="off">
+                        </div>
+                        <button id="btn-login" class="btn btn-primary">進入遊戲</button>
+                        <div class="auth-tips">
+                            <p>💡 輸入新名稱會自動建立帳號，獲得 100 點數！</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================
+                     2. 寵物主畫面 (Game Screen)
+                     ============================================ -->
+                <div id="screen-game" class="screen">
+                    <!-- 頂部資訊列 -->
+                    <div class="game-header">
+                        <div class="user-info">
+                            <span class="user-icon">👤</span>
+                            <span id="display-username" class="username">載入中...</span>
+                        </div>
+                        <div class="points-badge">
+                            <span class="gem-icon">💎</span>
+                            <span id="display-points">0</span> 點
+                        </div>
+                    </div>
+
+                    <!-- 遊戲渲染畫布包裝 (PixiJS Canvas) -->
+                    <div class="canvas-container">
+                        <canvas id="pet-canvas"></canvas>
+                        <!-- 載入中遮罩 -->
+                        <div id="game-loader" class="game-loader">
+                            <div class="spinner"></div>
+                            <p>正在喚醒寵物...</p>
+                        </div>
+                        <!-- 首次建立寵物對話框 -->
+                        <div id="pet-creator" class="modal-overlay creator-overlay">
+                            <div class="modal-card creator-card">
+                                <h2>🥚 孵化你的第一隻寵物</h2>
+                                <p>為牠取個可愛的名字吧！</p>
+                                <div class="creator-preview">🍙</div>
+                                <div class="input-group">
+                                    <select id="new-pet-species">
+                                        <option value="rice_bunny" style="color: #000;">🍙 飯糰兔</option>
+                                        <option value="dog" style="color: #000;">🐶 狗狗</option>
+                                        <option value="cat" style="color: #000;">🐱 貓咪</option>
+                                    </select>
+                                    <input type="text" id="new-pet-name" placeholder="例如：海苔飯糰" maxlength="10">
+                                </div>
+                                <button id="btn-create-pet" class="btn btn-primary">孵化寵物</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 寵物狀態數值 HUD -->
+                    <div class="status-hud">
+                        <!-- 飽食度 -->
+                        <div class="status-bar-group">
+                            <div class="bar-label">
+                                <span>🍔 飽食度</span>
+                                <span id="val-fullness">100/100</span>
+                            </div>
+                            <div class="bar-track">
+                                <div id="bar-fullness" class="bar-fill fullness" style="width: 100%"></div>
+                            </div>
+                        </div>
+                        <!-- 心情 -->
+                        <div class="status-bar-group">
+                            <div class="bar-label">
+                                <span>😊 心情</span>
+                                <span id="val-happiness">100/100</span>
+                            </div>
+                            <div class="bar-track">
+                                <div id="bar-happiness" class="bar-fill happiness" style="width: 100%"></div>
+                            </div>
+                        </div>
+                        <!-- 等級與 EXP -->
+                        <div class="status-bar-group">
+                            <div class="bar-label">
+                                <span>⭐ 等級 <strong id="val-level">1</strong></span>
+                                <span id="val-exp">0/50 EXP</span>
+                            </div>
+                            <div class="bar-track">
+                                <div id="bar-exp" class="bar-fill exp" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 底部互動按鈕區 -->
+                    <div class="action-dock">
+                        <button id="dock-feed" class="dock-btn">
+                            <span class="dock-icon">🍽️</span>
+                            <span class="dock-text">餵食</span>
+                        </button>
+                        <button id="dock-play" class="dock-btn">
+                            <span class="dock-icon">🎾</span>
+                            <span class="dock-text">玩耍</span>
+                        </button>
+                        <button id="dock-shop" class="dock-btn">
+                            <span class="dock-icon">🛍️</span>
+                            <span class="dock-text">商店</span>
+                        </button>
+                        <button id="dock-logout" class="dock-btn btn-danger-dock">
+                            <span class="dock-icon">🚪</span>
+                            <span class="dock-text">登出</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         3. 互動彈窗 (Modals)
+         ============================================ -->
+
+    <!-- 餵食選單彈窗 -->
+    <div id="modal-feed" class="modal-overlay">
+        <div class="modal-card bottom-drawer">
+            <div class="drawer-handle"></div>
+            <div class="modal-header">
+                <h2>🍽️ 選擇美味惜食</h2>
+                <button class="btn-close">&times;</button>
+            </div>
+            <div class="options-grid">
+                <div class="option-card" data-feed-type="normal">
+                    <div class="option-icon">🍙</div>
+                    <h3>普通食物</h3>
+                    <p class="option-desc">飽食 +20 | 經驗 +10</p>
+                    <div class="option-cost">💎 5 點</div>
+                    <button class="btn btn-action-buy">餵食</button>
+                </div>
+                <div class="option-card" data-feed-type="premium">
+                    <div class="option-icon">🍱</div>
+                    <h3>高級惜食便當</h3>
+                    <p class="option-desc">飽食 +50 | 經驗 +30</p>
+                    <div class="option-cost">💎 15 點</div>
+                    <button class="btn btn-action-buy">餵食</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 玩耍選單彈窗 -->
+    <div id="modal-play" class="modal-overlay">
+        <div class="modal-card bottom-drawer">
+            <div class="drawer-handle"></div>
+            <div class="modal-header">
+                <h2>🎾 寵物互動行為</h2>
+                <button class="btn-close">&times;</button>
+            </div>
+            <div class="options-grid">
+                <div class="option-card" data-play-type="play">
+                    <div class="option-icon">🎾</div>
+                    <h3>丟球玩耍</h3>
+                    <p class="option-desc">心情 +15 | 經驗 +5</p>
+                    <div class="option-cost">💎 3 點</div>
+                    <button class="btn btn-action-buy">玩耍</button>
+                </div>
+                <div class="option-card" data-play-type="bath">
+                    <div class="option-icon">🛁</div>
+                    <h3>泡熱水澡</h3>
+                    <p class="option-desc">心情 +30 | 經驗 +10</p>
+                    <div class="option-cost">💎 5 點</div>
+                    <button class="btn btn-action-buy">洗澡</button>
+                </div>
+                <div class="option-card" data-play-type="pet">
+                    <div class="option-icon">🤚</div>
+                    <h3>摸摸頭部</h3>
+                    <p class="option-desc">心情 +3 | 經驗 +0</p>
+                    <div class="option-cost free">免費</div>
+                    <button class="btn btn-action-buy">摸摸</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 商店選單彈窗 -->
+    <div id="modal-shop" class="modal-overlay">
+        <div class="modal-card bottom-drawer shop-drawer">
+            <div class="drawer-handle"></div>
+            <div class="modal-header">
+                <h2>🛍️ 裝飾配件商店</h2>
+                <button class="btn-close">&times;</button>
+            </div>
+            <div class="shop-tabs">
+                <button class="tab-btn active" data-tab="hat">🎩 帽子</button>
+                <button class="tab-btn" data-tab="accessory">🎀 配件</button>
+                <button class="tab-btn" data-tab="background">🖼️ 背景</button>
+                <button class="tab-btn" data-tab="effect">✨ 特效</button>
+            </div>
+            <div class="shop-content-wrapper">
+                <div id="shop-items-container" class="shop-grid">
+                    <!-- 動態渲染商店道具 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局 Toast 提示 -->
+    <div id="toast" class="toast">提示訊息</div>
+
+    <!-- JS 指令碼載入 -->
+    <script src="./mobile/js/api.js"></script>
+    <script type="module">
+        import { PetGame } from './mobile/js/game/PetGame.js?v=15';
+        
+        // 全局掛載遊戲實例
+        window.petGameInstance = null;
+        
+        // 綁定 DOM 載入與初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初始化 API 模組並掛載到 window
+            window.petApi = new PetApi();
+            
+            // 檢查 JWT token
+            const token = localStorage.getItem('token');
+            if (token) {
+                window.petApi.setToken(token);
+                showScreen('screen-game');
+                initGame();
+            } else {
+                showScreen('screen-auth');
+            }
+        });
+    </script>
+</body>
+</html>

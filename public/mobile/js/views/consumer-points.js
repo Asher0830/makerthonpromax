@@ -65,12 +65,13 @@ async function renderConsumerPointsPage() {
         <div class="points-label">我的惜食點數</div>
       </div>
 
-      <div class="card pet-banner">
-        <div class="pet-icon">PETS</div>
-        <div class="pet-text">
-          <div class="pet-title">寵物系統即將推出！</div>
-          <div class="pet-subtitle">集點兌換可愛的虛擬寵物</div>
+      <div class="card pet-banner" onclick="router.navigate('/consumer/pet')" style="cursor: pointer; display: flex; align-items: center; gap: 16px; background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid rgba(212,163,89,0.3); color: #fff; padding: 16px; border-radius: 12px; margin-bottom: 20px;">
+        <div class="pet-icon" style="font-size: 32px; background: rgba(212, 163, 89, 0.1); border-radius: 50%; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border: 1px solid #d4a359;">🐰</div>
+        <div class="pet-text" style="flex: 1;">
+          <div class="pet-title" style="font-size: 16px; font-weight: 600; color: #f59e0b; margin-bottom: 4px;">🐾 惜食寵物養成系統</div>
+          <div class="pet-subtitle" style="font-size: 12px; color: #94a3b8;">使用點數餵養與裝扮您的專屬寵物！</div>
         </div>
+        <div class="arrow" style="font-size: 18px; color: #d4a359;">&rarr;</div>
       </div>
 
       <div class="section-title">點數紀錄</div>

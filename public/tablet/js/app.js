@@ -7,6 +7,16 @@ function escapeHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
+window.toggleFullscreen = function() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(err => {
+      console.warn(`無法開啟全螢幕模式: ${err.message}`);
+    });
+  } else {
+    document.exitFullscreen();
+  }
+};
+
 class TabletApp {
   constructor() {
     this.el = document.getElementById('app');
@@ -78,6 +88,8 @@ class TabletApp {
     clearInterval(this._countdownTimer);
     clearInterval(this._resultTimer);
     clearInterval(this._pairTimer);
+    clearTimeout(this._gachaAnimationFailsafe);
+    clearTimeout(this._waitingTriggerFailsafe);
 
     /* Merge any extra data */
     Object.assign(this, data);
@@ -126,7 +138,7 @@ class TabletApp {
         </div>
         <div class="status-bar__right">
           <span class="status-bar__temp">溫控 <span>${temp}</span></span>
-          <span class="status-bar__time">${time}</span>
+          <span class="status-bar__time" onclick="window.toggleFullscreen()" style="cursor: pointer; padding: 4px 8px; border-radius: 4px; background: var(--accent-light); color: var(--accent-green); display: flex; align-items: center; gap: 4px;" title="點擊切換全螢幕">⛶ ${time}</span>
         </div>
       </div>`;
   }
@@ -309,7 +321,7 @@ class TabletApp {
     const amount = this.currentOrder?.amount || 0;
     return `
       ${this._statusBar()}
-      <div class="screen flex-col gap-24">
+      <div class="screen flex-col gap-16" style="justify-content: center; padding-top: 8px;">
         <h2 class="title title--gradient">掃碼付款</h2>
         <p class="body-text">請用手機掃描 QR Code 完成付款</p>
 
@@ -369,6 +381,11 @@ class TabletApp {
         <p class="body-text" style="animation: pulse 2s ease-in-out infinite;">
           握住旋鈕，順時針轉一圈…
         </p>
+
+        <!-- 輔助與防呆按鈕，防止黑客松現場硬體/網路失靈卡死 -->
+        <button class="btn btn--secondary" onclick="app.onSimulateTrigger()" style="margin-top: 8px; border-radius: 12px; font-size: 0.9rem; padding: 10px 20px;">
+          輔助出餐 (跳過旋鈕)
+        </button>
       </div>`;
   }
 
@@ -387,6 +404,10 @@ class TabletApp {
             ${this._gachaCells()}
           </div>
         </div>
+        <!-- 輔助與防呆按鈕：跳過動畫直接進入結果頁 -->
+        <button class="btn btn-sm btn--secondary" onclick="app.onSkipAnimation()" style="position: absolute; bottom: 20px; right: 20px; z-index: 1000; border-radius: 8px; font-size: 0.8rem; padding: 6px 12px;">
+          跳過動畫 ➜
+        </button>
       </div>`;
   }
 
@@ -459,7 +480,7 @@ class TabletApp {
   _renderPairMode() {
     return `
       ${this._statusBar()}
-      <div class="screen flex-col gap-24">
+      <div class="screen flex-col gap-16" style="justify-content: flex-start; padding-top: 32px;">
         <h2 class="title title--gradient">店家配對</h2>
         <p class="body-text">請用 FoodD 店家 App 掃描下方 QR Code<br>完成機台配對</p>
 
@@ -513,6 +534,15 @@ class TabletApp {
           break;
         case 'GACHA_ANIMATION':
           this._runGachaAnimation();
+          break;
+        case 'WAITING_TRIGGER':
+          // 15 秒定時防呆：若進入 WAITING_TRIGGER 後 15 秒沒有轉動旋鈕，自動觸發輔助出餐，保障 Demo 不卡死
+          this._waitingTriggerFailsafe = setTimeout(() => {
+            if (this.state === 'WAITING_TRIGGER') {
+              console.warn('[Failsafe] 旋鈕轉動超時，執行輔助模擬出餐');
+              this.onSimulateTrigger();
+            }
+          }, 15000);
           break;
         case 'RESULT':
           this._startResultCountdown();
@@ -663,31 +693,27 @@ class TabletApp {
     const target = document.getElementById('qr-target');
     if (!target || !this.currentOrder) return;
     
-    let origin = window.location.origin;
-    // 如果在本機以 localhost 測試，自動替換為區域網路 LAN IP 讓手機可以連線
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      origin = 'http://10.71.71.65:3000';
-    }
+    const origin = window.location.origin;
     const url = `${origin}/mobile/#/consumer/pay/${this.currentOrder.orderId}`;
     
     try {
       if (typeof QRCode !== 'undefined') {
-        QRCode.toCanvas(url, { width: 220, margin: 2, color: { dark: '#0a0a1a', light: '#ffffff' } })
+        QRCode.toCanvas(url, { width: 180, margin: 2, color: { dark: '#0a0a1a', light: '#ffffff' } })
           .then((canvas) => {
             target.innerHTML = '';
             target.appendChild(canvas);
           })
           .catch((e) => {
             console.error('QR canvas error, falling back to API image', e);
-            target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+            target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}" style="display:block; width:180px; height:180px; border-radius: 8px;" />`;
           });
       } else {
         console.warn('QRCode library not loaded, using API image fallback');
-        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}" style="display:block; width:180px; height:180px; border-radius: 8px;" />`;
       }
     } catch (err) {
       console.error('Failed to generate QR Code, using image fallback:', err);
-      target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+      target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}" style="display:block; width:180px; height:180px; border-radius: 8px;" />`;
     }
   }
 
@@ -695,31 +721,27 @@ class TabletApp {
     const target = document.getElementById('pair-qr-target');
     if (!target) return;
     
-    let origin = window.location.origin;
-    // 如果在本機以 localhost 測試，自動替換為區域網路 LAN IP 讓手機可以連線
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      origin = 'http://10.71.71.65:3000';
-    }
+    const origin = window.location.origin;
     const url = `${origin}/mobile/#/store/pair?token=${this.pairToken}`;
     
     try {
       if (typeof QRCode !== 'undefined') {
-        QRCode.toCanvas(url, { width: 220, margin: 2, color: { dark: '#0a0a1a', light: '#ffffff' } })
+        QRCode.toCanvas(url, { width: 180, margin: 2, color: { dark: '#0a0a1a', light: '#ffffff' } })
           .then((canvas) => {
             target.innerHTML = '';
             target.appendChild(canvas);
           })
           .catch((e) => {
             console.error('QR canvas error, falling back to API image', e);
-            target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+            target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}" style="display:block; width:180px; height:180px; border-radius: 8px;" />`;
           });
       } else {
         console.warn('QRCode library not loaded, using API image fallback');
-        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}" style="display:block; width:180px; height:180px; border-radius: 8px;" />`;
       }
     } catch (err) {
       console.error('Failed to generate pair QR Code, using image fallback:', err);
-      target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+      target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}" style="display:block; width:180px; height:180px; border-radius: 8px;" />`;
     }
   }
 
@@ -829,9 +851,21 @@ class TabletApp {
       return;
     }
 
+    // 6 秒強制定時器，時間到一律強制回復到 RESULT 狀態以防動畫卡死，保障 Demo 順利運行
+    this._gachaAnimationFailsafe = setTimeout(() => {
+      if (this.state === 'GACHA_ANIMATION') {
+        console.warn('[Failsafe] 動畫執行超時，自動進入結果頁');
+        this.setState('RESULT');
+      }
+    }, 6000);
+
     const winnerNum = this.currentResult.compartment;
     const cells = document.querySelectorAll('.gacha-cell');
-    if (!cells.length) return;
+    if (!cells.length) {
+      console.warn('[App] Gacha cells not rendered, bypassing animation');
+      this.setState('RESULT');
+      return;
+    }
 
     const markers = ['✦', '✧', '★', '☆', '✦', '✧', '★', '☆'];
 
@@ -963,6 +997,42 @@ class TabletApp {
       this.setState('RESULT');
     } else {
       this.setState('GACHA_ANIMATION');
+    }
+  }
+
+  onSkipAnimation() {
+    if (this.state === 'GACHA_ANIMATION') {
+      showToast('已跳過抽獎動畫', 'info');
+      this.setState('RESULT');
+    }
+  }
+
+  async onSimulateTrigger() {
+    if (!this.currentOrder) return;
+    try {
+      showToast('正在模擬旋鈕轉動與出餐...', 'info');
+      // 嘗試呼叫模擬出餐 API (如果存在)，否則本地直接 Fallback 出餐以防 Demo 卡死
+      const res = await fetch(`/api/v1/debug/machine/trigger-mock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: this.currentOrder.orderId, machineId: this.machineId })
+      }).then(r => r.json()).catch(() => null);
+
+      if (res && res.success && res.result) {
+        this._handleLatestResult(res.result);
+      } else {
+        // 本地安全 Fallback 機制：挑選一個 stocked 艙位直接進行出餐，100% 保障 Demo 流暢度！
+        const winner = this.machineStatus.compartments.find(c => c.status === 'stocked') || { index_num: 1, productName: '惜食美食', category: 'bento' };
+        this._handleLatestResult({
+          orderId: this.currentOrder.orderId,
+          compartment: winner.index_num,
+          productName: winner.productName || '經典便當',
+          category: winner.category || 'bento',
+          orderType: this.currentOrder.orderType
+        });
+      }
+    } catch (e) {
+      console.warn('[App] 模擬出餐失敗，執行本地降級出餐', e);
     }
   }
 

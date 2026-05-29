@@ -548,8 +548,8 @@ machines.post('/trigger', async (c) => {
         throw err;
     }
 
-    // 發送開門指令 (非同步，不阻塞回應)
-    sendOpenDoor(machine_id, won.index_num, `order_${order.id}`);
+    // 發送開門指令 (加入 await 確保寫入指令佇列成功，防範硬體指令丟失)
+    await sendOpenDoor(machine_id, won.index_num, `order_${order.id}`);
 
     return success(c, {
         won_compartment: won.index_num,

@@ -63,6 +63,16 @@ async function start() {
               )
         `);
         console.log('[DB] 成功重置待救援的機台與艙位');
+
+        // 1.7. [DEV ONLY] 自動將已過期的測試商品延期，確保地圖展示始終有地點
+        if (process.env.NODE_ENV !== 'production') {
+            query(`
+                UPDATE products
+                SET expires_at = datetime('now', '+6 hours')
+                WHERE expires_at < datetime('now')
+            `);
+            console.log('[DB] [DEV] 成功為已到期的測試商品自動延期 6 小時，確保地圖地點展示正常');
+        }
     } catch (err) {
         console.warn('[DB WARNING] 無法在啟動時自動重置機台狀態:', err.message);
     }
@@ -82,25 +92,39 @@ async function start() {
     }, 30000);
 
     // 4. 啟動 HTTP 伺服器
-    serve({
-        fetch: app.fetch,
-        port: PORT,
-        hostname: '0.0.0.0',
-    }, (info) => {
-        const ip = '10.71.71.65';
-        console.log('');
-        console.log(`[OK] 伺服器啟動成功！`);
-        console.log(`[LOCAL]  本機:    http://localhost:${info.port}/api/health`);
-        console.log(`[LAN]    區網:    http://${ip}:${info.port}/api/health`);
-        console.log(`[MOBILE] 手機端:  http://${ip}:${info.port}/mobile/`);
-        console.log(`[TABLET] 平板端:  http://${ip}:${info.port}/tablet/`);
-        console.log(`[ESP32]  觸發:    POST http://${ip}:${info.port}/api/v1/machines/trigger`);
-        console.log(`[ESP32]  輪詢:    GET  http://${ip}:${info.port}/api/v1/machines/MAC_01A2B3/pop-command`);
-        console.log('');
-        console.log('[INFO] 測試帳號:');
-        console.log('   消費者: consumer@test.com / test1234');
-        console.log('   店家:   store@test.com / test1234');
-        console.log('');
+    import('os').then((os) => {
+        const getLocalIP = () => {
+            const interfaces = os.networkInterfaces();
+            for (const name of Object.keys(interfaces)) {
+                for (const iface of interfaces[name]) {
+                    if (iface.family === 'IPv4' && !iface.internal) {
+                        return iface.address;
+                    }
+                }
+            }
+            return 'localhost';
+        };
+
+        const ip = getLocalIP();
+        serve({
+            fetch: app.fetch,
+            port: PORT,
+            hostname: '0.0.0.0',
+        }, (info) => {
+            console.log('');
+            console.log(`[OK] 伺服器啟動成功！`);
+            console.log(`[LOCAL]  本機:    http://localhost:${info.port}/api/health`);
+            console.log(`[LAN]    區網:    http://${ip}:${info.port}/api/health`);
+            console.log(`[MOBILE] 手機端:  http://${ip}:${info.port}/mobile/`);
+            console.log(`[TABLET] 平板端:  http://${ip}:${info.port}/tablet/`);
+            console.log(`[ESP32]  觸發:    POST http://${ip}:${info.port}/api/v1/machines/trigger`);
+            console.log(`[ESP32]  輪詢:    GET  http://${ip}:${info.port}/api/v1/machines/MAC_01A2B3/pop-command`);
+            console.log('');
+            console.log('[INFO] 測試帳號:');
+            console.log('   消費者: consumer@test.com / test1234');
+            console.log('   店家:   store@test.com / test1234');
+            console.log('');
+        });
     });
 
     // 5. 優雅關閉
@@ -123,4 +147,4 @@ start().catch((err) => {
     process.exit(1);
 });
 
-// Trigger watch reload to refresh loaded SQLite database from disk
+// Trigger watch reload to refresh loaded SQLite database from disk - Reload 6

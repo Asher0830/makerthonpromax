@@ -13,7 +13,7 @@ const i18n = {
     
     zh: {
         // Shared & Nav
-        appTitle: "SFood 惜食救援",
+        appTitle: "refuse to waste",
         logout: "登出",
         login: "登入",
         register: "註冊",
@@ -52,7 +52,7 @@ const i18n = {
     },
     en: {
         // Shared & Nav
-        appTitle: "SFood Rescue",
+        appTitle: "refuse to waste",
         logout: "Logout",
         login: "Login",
         register: "Register",
@@ -145,7 +145,7 @@ class Router {
     }
 
     resolve() {
-        // --- 關閉相機鏡頭 ---
+        // --- 關閉相機鏡頭 & 移除 overlay ---
         if (window.activeQRScanner) {
             try {
                 const scannerToStop = window.activeQRScanner;
@@ -158,6 +158,12 @@ class Router {
             } catch (err) {
                 console.warn('[警告] 關閉鏡頭異常:', err);
             }
+        }
+        if (window.activeScannerOverlay) {
+            try {
+                window.activeScannerOverlay.remove();
+                window.activeScannerOverlay = null;
+            } catch (err) {}
         }
 
         // --- 銷毀 PixiJS 畫布以防記憶體洩漏 ---
@@ -348,6 +354,97 @@ function getCategoryBadgeClass(category) {
     const classes = { bento: 'badge-bento', bread: 'badge-bread', vegetable: 'badge-vegetable', other: 'badge-other' };
     return classes[category] || classes.other;
 }
+
+// --- Reusable Store QR Code Scanner ---
+window.openStoreScanner = function(onSuccessCallback) {
+    if (window.activeScannerOverlay) {
+        try {
+            window.activeScannerOverlay.remove();
+        } catch (e) {}
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay active';
+    overlay.style.zIndex = '10000';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.innerHTML = `
+        <div class="modal-card" style="text-align: center; max-width: 340px; padding: 24px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-lg); margin: 20px;">
+            <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text); margin-bottom: 6px;">掃碼核銷訂單</h2>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 20px;">對準顧客出示的核銷 QR Code 進行掃描</p>
+            
+            <div id="store-qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: #000; box-shadow: var(--shadow-sm);"></div>
+            
+            <button class="btn btn-secondary btn-block" id="btn-close-store-scanner" style="margin-top: 24px;">取消關閉</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    window.activeScannerOverlay = overlay;
+
+    const html5QrCode = new Html5Qrcode("store-qr-reader");
+    window.activeQRScanner = html5QrCode;
+    
+    const cleanUpScanner = async () => {
+        try {
+            if (html5QrCode.isScanning) {
+                await html5QrCode.stop();
+            }
+        } catch (e) {
+            console.warn('Stop scanner error:', e);
+        }
+        overlay.remove();
+        if (window.activeScannerOverlay === overlay) {
+            window.activeScannerOverlay = null;
+        }
+        if (window.activeQRScanner === html5QrCode) {
+            window.activeQRScanner = null;
+        }
+    };
+
+    document.getElementById('btn-close-store-scanner').addEventListener('click', cleanUpScanner);
+
+    html5QrCode.start(
+        { facingMode: "environment" },
+        {
+            fps: 10,
+            qrbox: { width: 200, height: 200 }
+        },
+        async (decodedText) => {
+            if (decodedText.startsWith('sfood-redeem:')) {
+                const parts = decodedText.split(':');
+                const orderId = parts[1];
+                const pickupCode = parts[2];
+
+                await cleanUpScanner();
+
+                try {
+                    showLoading();
+                    await api.completeOrder(orderId, pickupCode);
+                    hideLoading();
+                    showToast(`訂單核銷成功！`, 'success');
+                    if (typeof onSuccessCallback === 'function') {
+                        onSuccessCallback();
+                    }
+                } catch (err) {
+                    hideLoading();
+                    showToast(err.message || '核銷失敗，請重試', 'error');
+                }
+            } else {
+                showToast('無效的核銷條碼！', 'warning');
+            }
+        },
+        (errorMessage) => {
+            // Ignore scanning feedback errors
+        }
+    ).catch(err => {
+        showToast('開啟相機失敗，請確認相機權限！', 'error');
+        overlay.remove();
+        if (window.activeScannerOverlay === overlay) {
+            window.activeScannerOverlay = null;
+        }
+    });
+};
 
 // --- Initialize App ---
 const authManager = new AuthManager();

@@ -91,7 +91,8 @@ debug.post('/machine/trigger-knob', async (c) => {
     }
 });
 
-// 6. POST /db/reset — 重設並重新 Seed 資料庫
+// 6. POST /db/reset — 重設並重新 Seed 資料庫 [SECURITY NOTE: 黑客松安全防護已將此端點永久註解禁用，避免資料意外清空！]
+/*
 debug.post('/db/reset', async (c) => {
     try {
         transaction(() => {
@@ -117,6 +118,7 @@ debug.post('/db/reset', async (c) => {
         return c.json({ success: false, error: err.message }, 500);
     }
 });
+*/
 
 // 7. POST /products/create — 快速產生 5 筆調試商品
 debug.post('/products/create', async (c) => {

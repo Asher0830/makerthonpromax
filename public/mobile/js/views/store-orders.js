@@ -58,11 +58,15 @@ async function renderStoreOrdersPage() {
                 const amount = Number(order.totalAmount || order.total_amount || order.amount || 0);
                 const status = order.status || 'PAID';
                 const statusText = statusMap[status] || status;
-                const icon = statusIcons[status] || '[訂單]';
                 const productName = order.productName || order.product_name || order.items?.[0]?.name || '商品';
                 const consumerName = order.consumerName || order.consumer_name || '顧客';
                 const orderId = order.id || order._id || '';
-                const orderType = order.order_type || order.orderType || order.source || order.type || '';
+                const orderType = order.order_type || order.orderType || order.source || order.type || 'map_purchase';
+                const typeLabel = orderType === 'machine_gacha'
+                    ? '[扭蛋]'
+                    : orderType === 'machine_purchase'
+                        ? '[直購]'
+                        : '[自取]';
                 const isMachineDirect = orderType === 'machine_purchase';
                 const isMachineGacha = orderType === 'machine_gacha';
                 const isMapPaid = (orderType === 'map_purchase') && status === 'PAID';
@@ -72,7 +76,7 @@ async function renderStoreOrdersPage() {
                     verifySection = `
                         <div class="verify-section">
                             <div style="display: flex; gap: 8px; align-items: center;">
-                                <input type="text" class="form-input verify-input" id="verify-${orderId}" maxlength="4" placeholder="輸入取餐碼" style="flex: 1; margin: 0;">
+                                <input type="text" class="form-input verify-input" id="verify-${orderId}" maxlength="6" placeholder="輸入取餐碼" style="flex: 1; margin: 0; text-transform: uppercase;">
                                 <button class="btn btn-primary btn-sm" onclick="verifyOrder('${orderId}')">確認核銷</button>
                             </div>
                         </div>
@@ -82,7 +86,7 @@ async function renderStoreOrdersPage() {
                 return `
                     <div class="card">
                         <div class="order-card">
-                            <div class="order-icon">${icon}</div>
+                            <div class="order-icon" style="font-size: 0.85rem; font-weight: 700; color: var(--primary);">${typeLabel}</div>
                             <div class="order-info">
                                 <div class="order-name">${productName}</div>
                                 <div class="order-date">${consumerName} · ${dateStr}</div>
@@ -112,8 +116,11 @@ async function renderStoreOrdersPage() {
     }
 
     const html = `
-        <div class="page-header">
+        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
             <h1>訂單管理</h1>
+            <button class="btn btn-primary" onclick="openStoreScanner()" style="font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; margin: 0; background: var(--primary-color);">
+              📷 掃碼核銷
+            </button>
         </div>
         <div class="page-content">
             <div class="tab-filters">
@@ -141,9 +148,9 @@ async function renderStoreOrdersPage() {
         const input = document.getElementById('verify-' + orderId);
         if (!input) return;
 
-        const pickupCode = input.value.trim();
-        if (!pickupCode || pickupCode.length !== 4) {
-            showToast('請輸入 4 位取餐碼', 'error');
+        const pickupCode = input.value.trim().toUpperCase();
+        if (!pickupCode || pickupCode.length !== 6) {
+            showToast('請輸入 6 位取餐碼', 'error');
             return;
         }
 
@@ -157,6 +164,16 @@ async function renderStoreOrdersPage() {
         } catch (err) {
             hideLoading();
             showToast(err.message || '核銷失敗', 'error');
+        }
+    };
+
+    // ── Store QR Code Scanner Overlay ──
+    const originalOpenStoreScanner = window.openStoreScanner;
+    window.openStoreScanner = function() {
+        if (typeof originalOpenStoreScanner === 'function') {
+            originalOpenStoreScanner(() => {
+                renderStoreOrdersPage();
+            });
         }
     };
 }

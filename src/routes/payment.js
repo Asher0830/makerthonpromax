@@ -233,6 +233,22 @@ payment.post('/mock/pay-and-dispense', async (c) => {
         return error(c, 'FORBIDDEN', '生產環境禁止使用測試用出餐 API', 403);
     }
 
+    // 解析 JWT Token 綁定使用者，將訪客/機台訂單歸屬到付款的會員帳戶中
+    let userId = order.user_id;
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.slice(7);
+            const { verifyToken } = await import('../utils/jwt.js');
+            const payload = verifyToken(token);
+            if (payload && payload.id) {
+                userId = payload.id;
+            }
+        } catch (err) {
+            // ignore
+        }
+    }
+
     // deferred imports to avoid circulars
     const { query: dbQuery, transaction } = await import('../db/connection.js');
     const { getFilteredPool, drawFromPool } = await import('../services/gacha.js');
@@ -243,8 +259,8 @@ payment.post('/mock/pay-and-dispense', async (c) => {
     let points = 0;
 
     transaction(() => {
-        // 標記為已付款並直接進入出餐流程
-        dbQuery(`UPDATE orders SET status = 'WAITING_FOR_TRIGGER', paid_at = datetime('now'), updated_at = datetime('now'), version = version + 1 WHERE id = ?`, [order_id]);
+        // 標記為已付款並直接進入出餐流程，同時將 order.user_id 綁定為當前付款的用戶
+        dbQuery(`UPDATE orders SET status = 'WAITING_FOR_TRIGGER', user_id = ?, paid_at = datetime('now'), updated_at = datetime('now'), version = version + 1 WHERE id = ?`, [userId, order_id]);
         dbQuery(`UPDATE machines SET status = 'WAITING_FOR_TRIGGER', active_order_id = ? WHERE id = ?`, [order_id, order.machine_id]);
     });
 
@@ -289,8 +305,8 @@ payment.post('/mock/pay-and-dispense', async (c) => {
 
     transaction(() => {
         dbQuery(
-            `UPDATE orders SET status = 'DISPENSING', compartment_id = ?, product_id = ?, amount = ?, points_earned = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
-            [won.compartment_id, won.product_id, won.selling_price, points, order_id]
+            `UPDATE orders SET status = 'DISPENSING', compartment_id = ?, product_id = ?, amount = ?, points_earned = ?, user_id = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
+            [won.compartment_id, won.product_id, won.selling_price, points, userId, order_id]
         );
 
         dbQuery(`UPDATE machines SET status = 'DISPENSING' WHERE id = ?`, [freshOrder.machine_id]);
@@ -298,16 +314,15 @@ payment.post('/mock/pay-and-dispense', async (c) => {
         dbQuery(`UPDATE compartments SET status = 'RESERVED' WHERE id = ?`, [won.compartment_id]);
         dispenseCompartment(won.compartment_id);
 
-        // [M16 FIX] null userId 防護
-        if (freshOrder.user_id) {
-            awardPoints(freshOrder.user_id, points);
+        if (userId) {
+            awardPoints(userId, points);
         }
 
         dbQuery(`UPDATE products SET status = 'SOLD', updated_at = datetime('now') WHERE id = ?`, [won.product_id]);
     });
 
-    // 發送開門指令
-    sendOpenDoor(freshOrder.machine_id, won.index_num, `order_${order_id}`);
+    // 發送開門指令 (加入 await 確保寫入指令佇列成功，防範硬體指令丟失)
+    await sendOpenDoor(freshOrder.machine_id, won.index_num, `order_${order_id}`);
 
     return success(c, {
         order_id: Number(order_id),

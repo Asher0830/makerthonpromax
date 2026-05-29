@@ -3,11 +3,6 @@
    ═══════════════════════════════════════════════════ */
 
 async function renderConsumerPayPage(orderId) {
-  if (!authManager.isLoggedIn()) {
-    localStorage.setItem('redirect_after_login', location.hash);
-    router.navigate('/login');
-    return;
-  }
   updateBottomNav('orders');
   showLoading();
 
@@ -33,9 +28,17 @@ async function renderConsumerPayPage(orderId) {
 
   hideLoading();
 
+  const orderType = order.order_type || order.orderType || order.source || order.type || 'map_purchase';
+
+  // 權限檢查：如果不是機台訂單且未登入，則必須強制登入
+  if (orderType === 'map_purchase' && !authManager.isLoggedIn()) {
+    localStorage.setItem('redirect_after_login', location.hash);
+    router.navigate('/login');
+    return;
+  }
+
   const productName = order.productName || order.product_name || '惜食商品';
   const amount = order.amount || order.price || 0;
-  const orderType = order.order_type || order.orderType || order.source || order.type || 'map_purchase';
 
   // 若訂單先前已經付款成功，則直接顯示付款成功畫面，避免再次付款顯示「非待付款」
   if (['WAITING_FOR_TRIGGER', 'DISPENSING', 'COMPLETED', 'PAID'].includes(order.status)) {
@@ -174,6 +177,18 @@ async function renderConsumerPayPage(orderId) {
       </button>
     `;
 
+  const loginPromptHTML = !isLoggedIn ? `
+    <div class="card" style="margin-top: 16px; padding: 14px 16px; border: 1.5px solid rgba(0, 128, 85, 0.2); background: var(--accent-light, rgba(0, 128, 85, 0.04)); border-radius: 12px; text-align: left; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+      <div style="font-size: 0.9rem; font-weight: 700; color: var(--primary-color); display: flex; align-items: center; gap: 6px;">
+        <span>💡 貼心提醒 (Tip)</span>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin: 0;">
+        您目前是以<strong>訪客身份</strong>進行付款。
+        <a href="javascript:void(0)" onclick="redirectToLoginForGacha('${orderId}')" style="color: var(--primary-color); font-weight: 700; text-decoration: underline; margin-left: 4px;">立即登入/註冊</a> 即可累積環保點數，並解鎖「惜食虛擬寵物」系統喔！
+      </p>
+    </div>
+  ` : '';
+
   const html = `
     <div class="page-header">
       <h1 class="header-title">付款</h1>
@@ -186,6 +201,7 @@ async function renderConsumerPayPage(orderId) {
       </div>
 
       ${paymentMethodsHTML}
+      ${loginPromptHTML}
       ${buttonHTML}
     </div>
   `;
