@@ -33,11 +33,36 @@ async function start() {
     await initDB();
     initSchema();
 
-    // 1.5. 重置開發環境下可能因意外中斷而被鎖定的機台狀態與預留艙位
+    // 1.5. 重置可能因意外中斷而被鎖定的機台狀態與預留艙位
+    // 僅重置處於安全可救援狀態的機平（active_order 為空或已結束）
     try {
-        query("UPDATE machines SET status = 'IDLE', active_order_id = NULL");
-        query("UPDATE compartments SET status = 'STOCKED' WHERE status = 'RESERVED'");
-        console.log('[DB] 成功重置所有機台至 IDLE 狀態並釋放預留艙位');
+        query(`
+            UPDATE machines
+            SET status = 'IDLE', active_order_id = NULL
+            WHERE active_order_id IS NULL
+               OR active_order_id IN (
+                   SELECT id FROM orders
+                   WHERE status IN ('COMPLETED', 'CANCELLED', 'TIMEOUT_REFUNDED')
+               )
+        `);
+        query(`
+            UPDATE compartments
+            SET status = 'STOCKED'
+            WHERE status = 'RESERVED'
+              AND (
+                  -- 只有對應訂單已結束才釋放
+                  compartment_id NOT IN (
+                      SELECT compartment_id FROM orders
+                      WHERE compartment_id IS NOT NULL
+                        AND status NOT IN ('COMPLETED', 'CANCELLED', 'TIMEOUT_REFUNDED')
+                  )
+                  -- 或根本沒有訂單引用
+                  OR NOT EXISTS (
+                      SELECT 1 FROM orders WHERE compartment_id = compartments.id
+                  )
+              )
+        `);
+        console.log('[DB] 成功重置待救援的機台與艙位');
     } catch (err) {
         console.warn('[DB WARNING] 無法在啟動時自動重置機台狀態:', err.message);
     }

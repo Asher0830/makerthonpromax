@@ -424,16 +424,18 @@ machines.post('/trigger', async (c) => {
     let points = 0;
 
     if (order.order_type === 'machine_purchase') {
-        // 直接購買：直接讀取預留之艙位商品
         const comp = queryFirst(
-            `SELECT c.id as compartment_id, c.index_num, p.id as product_id, p.name, p.category, p.selling_price, p.original_price
+            `SELECT c.id as compartment_id, c.index_num, c.status, p.id as product_id, p.name, p.category, p.selling_price, p.original_price
              FROM compartments c
              JOIN products p ON c.product_id = p.id
              WHERE c.id = ?`,
             [order.compartment_id]
         );
         if (!comp) {
-            return error(c, 'COMPARTMENT_NOT_AVAILABLE', '商品已被他人抽走或艙位狀態不正確', 400);
+            return error(c, 'COMPARTMENT_NOT_AVAILABLE', '找不到艙位或商品', 400);
+        }
+        if (comp.status !== 'RESERVED') {
+            return error(c, 'COMPARTMENT_NOT_RESERVED', '艙位狀態無效，可能已過期', 400);
         }
         won = comp;
         points = calculatePoints(won.selling_price);
@@ -464,37 +466,53 @@ machines.post('/trigger', async (c) => {
         points = calculatePoints(won.selling_price);
     }
 
-    transaction(() => {
-        // 更新訂單
-        query(
-            `UPDATE orders SET status = 'DISPENSING', compartment_id = ?, product_id = ?,
-             amount = ?, points_earned = ?, updated_at = datetime('now'), version = version + 1
-             WHERE id = ?`,
-            [won.compartment_id, won.product_id, won.selling_price, points, order.id]
-        );
+    // 取出當前訂單 version，用於樂觀鎖防重複發放
+    const currentOrder = queryFirst('SELECT version FROM orders WHERE id = ?', [order.id]);
+    if (!currentOrder) {
+        return error(c, 'ORDER_NOT_FOUND', '找不到此訂單', 404);
+    }
 
-        // 更新機台狀態
-        query(
-            `UPDATE machines SET status = 'DISPENSING' WHERE id = ?`,
-            [machine_id]
-        );
+    try {
+        transaction(() => {
+            // 使用 version 樂觀鎖，確認訂單未被修改過
+            const updateResult = query(
+                `UPDATE orders SET status = 'DISPENSING', compartment_id = ?, product_id = ?,
+                 amount = ?, points_earned = ?, updated_at = datetime('now'), version = version + 1
+                 WHERE id = ? AND version = ?`,
+                [won.compartment_id, won.product_id, won.selling_price, points, order.id, currentOrder.version]
+            );
 
-        // 標記艙位 RESERVED -> DISPENSED
-        query(
-            `UPDATE compartments SET status = 'RESERVED' WHERE id = ?`,
-            [won.compartment_id]
-        );
-        dispenseCompartment(won.compartment_id);
+            if (updateResult.meta.changes === 0) {
+                throw new Error('DOUBLE_TRIGGER_DETECTED');
+            }
 
-        // 發放點數
-        awardPoints(order.user_id, points);
+            // 更新機台狀態
+            query(
+                `UPDATE machines SET status = 'DISPENSING' WHERE id = ?`,
+                [machine_id]
+            );
 
-        // 更新商品狀態
-        query(
-            `UPDATE products SET status = 'SOLD', updated_at = datetime('now') WHERE id = ?`,
-            [won.product_id]
-        );
-    });
+            // 標記艙位 RESERVED -> DISPENSED
+            query(
+                `UPDATE compartments SET status = 'DISPENSED' WHERE id = ? AND status = 'RESERVED'`,
+                [won.compartment_id]
+            );
+
+            // 發放點數
+            awardPoints(order.user_id, points);
+
+            // 更新商品狀態
+            query(
+                `UPDATE products SET status = 'SOLD', updated_at = datetime('now') WHERE id = ?`,
+                [won.product_id]
+            );
+        });
+    } catch (err) {
+        if (err.message === 'DOUBLE_TRIGGER_DETECTED') {
+            return error(c, 'DOUBLE_TRIGGER', '訂單已處理，請勿重複觸發', 409);
+        }
+        throw err;
+    }
 
     // 發送開門指令 (非同步，不阻塞回應)
     sendOpenDoor(machine_id, won.index_num, `order_${order.id}`);

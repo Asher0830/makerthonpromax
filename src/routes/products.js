@@ -380,6 +380,16 @@ products.delete('/:id', requireAuth(), requireRole('store_owner'), async (c) => 
         return error(c, 'PRODUCT_NOT_FOUND', '找不到此商品或您無權刪除', 404);
     }
 
+    // 確認沒有正在進行中的訂單引用此商品
+    const activeOrder = queryFirst(
+        `SELECT id FROM orders WHERE product_id = ?
+         AND status NOT IN ('COMPLETED', 'TIMEOUT_REFUNDED', 'CANCELLED') LIMIT 1`,
+        [id]
+    );
+    if (activeOrder) {
+        return error(c, 'PRODUCT_HAS_ACTIVE_ORDER', '此商品有尚未完成的訂單，無法刪除', 400);
+    }
+
     transaction(() => {
         query('DELETE FROM product_allergens WHERE product_id = ?', [id]);
         query('DELETE FROM products WHERE id = ?', [id]);

@@ -34,7 +34,7 @@ export function dispenseCompartment(compartmentId) {
  */
 export function releaseCompartment(compartmentId) {
     query(
-        `UPDATE compartments SET status = 'STOCKED' WHERE id = ?`,
+        `UPDATE compartments SET status = 'STOCKED' WHERE id = ? AND status = 'RESERVED'`,
         [compartmentId]
     );
 }
@@ -71,8 +71,8 @@ export function processTimeouts() {
     `, [now]);
 
     for (const order of timedOut) {
-        // 更新訂單狀態：待付款超時設為 CANCELLED，待轉動超時設為 TIMEOUT_REFUNDED
-        const newStatus = order.status === 'PENDING' ? 'CANCELLED' : 'TIMEOUT_REFUNDED';
+        const originalStatus = order.status;
+        const newStatus = originalStatus === 'PENDING' ? 'CANCELLED' : 'TIMEOUT_REFUNDED';
         query(
             `UPDATE orders SET status = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
             [newStatus, order.id]
@@ -97,7 +97,7 @@ export function processTimeouts() {
             );
         }
 
-        const logMsg = order.status === 'PENDING' ? '未付款取消' : '超時退款';
+        const logMsg = originalStatus === 'PENDING' ? '未付款取消' : '超時退款';
         console.log(`[TIMEOUT] 訂單 #${order.id} ${logMsg}（機台 ${order.machine_id}）`);
     }
 
