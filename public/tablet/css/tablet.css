@@ -176,9 +176,9 @@ body::before {
 .compartment-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  gap: 10px;
   width: 100%;
-  max-width: 560px;
+  max-width: 580px;
 }
 
 .compartment-slot {
@@ -186,17 +186,17 @@ body::before {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  padding: 18px 14px;
+  padding: 10px 8px;
   text-align: center;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition: all 0.3s ease;
-  min-height: 120px;
+  min-height: 90px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .compartment-slot--stocked {

@@ -31,16 +31,22 @@ INSERT OR IGNORE INTO stores (user_id, name, description, address, latitude, lon
 
 -- 測試機台
 INSERT OR IGNORE INTO machines (id, name, location_desc, latitude, longitude, total_compartments, status, secret_key) VALUES
-('MAC_01A2B3', '大安站 1 號機', '捷運大安站 2 號出口旁', 25.0330, 121.5435, 6, 'IDLE', 'dev_secret_key_001');
+('MAC_01A2B3', '大安站 1 號機', '捷運大安站 2 號出口旁', 25.0330, 121.5435, 12, 'IDLE', 'dev_secret_key_001');
 
--- 艙位（6 個）
+-- 艙位（12 個）
 INSERT OR IGNORE INTO compartments (machine_id, index_num, status) VALUES
 ('MAC_01A2B3', 1, 'EMPTY'),
 ('MAC_01A2B3', 2, 'EMPTY'),
 ('MAC_01A2B3', 3, 'EMPTY'),
 ('MAC_01A2B3', 4, 'EMPTY'),
 ('MAC_01A2B3', 5, 'EMPTY'),
-('MAC_01A2B3', 6, 'EMPTY');
+('MAC_01A2B3', 6, 'EMPTY'),
+('MAC_01A2B3', 7, 'EMPTY'),
+('MAC_01A2B3', 8, 'EMPTY'),
+('MAC_01A2B3', 9, 'EMPTY'),
+('MAC_01A2B3', 10, 'EMPTY'),
+('MAC_01A2B3', 11, 'EMPTY'),
+('MAC_01A2B3', 12, 'EMPTY');
 
 -- 地圖導購商品（source = 'map'）
 INSERT OR IGNORE INTO products (store_id, name, category, original_price, selling_price, description, source, status, expires_at) VALUES
@@ -63,6 +69,17 @@ INSERT OR IGNORE INTO products (store_id, name, category, original_price, sellin
 (5, '苓雅蔬食拼盤', 'vegetable', 70, 42, '高雄在地新鮮蔬菜拼盤', 'map', 'AVAILABLE', datetime('now', '+4 hours')),
 (6, '三民紅豆菠蘿', 'bread', 38, 22, '熱騰騰紅豆菠蘿麵包', 'map', 'AVAILABLE', datetime('now', '+5 hours'));
 
+-- 新增更多機台商品（將 12 艙位完全補滿）
+INSERT OR IGNORE INTO products (store_id, name, category, original_price, selling_price, description, source, status, expires_at) VALUES
+(1, '經典照燒雞腿便當', 'bento', 120, 60, '超大照燒雞腿+精選配菜', 'machine', 'AVAILABLE', datetime('now', '+3 hours')),
+(1, '香烤鯖魚便當', 'bento', 130, 65, '薄鹽鯖魚現烤+養生紫米飯', 'machine', 'AVAILABLE', datetime('now', '+3 hours')),
+(2, '法式明太子長棍', 'bread', 80, 40, '明太子醬均勻抹面，烤至酥脆', 'machine', 'AVAILABLE', datetime('now', '+5 hours')),
+(2, '黃金菠蘿麵包', 'bread', 45, 20, '傳統黃金菠蘿皮，香甜鬆軟', 'machine', 'AVAILABLE', datetime('now', '+5 hours')),
+(2, '香蒜巧巴達', 'bread', 50, 25, '濃厚蒜香與Q彈巧巴達麵包', 'machine', 'AVAILABLE', datetime('now', '+5 hours')),
+(1, '小農有機高麗菜', 'vegetable', 65, 35, '高山現採有機高麗菜，清甜可口', 'machine', 'AVAILABLE', datetime('now', '+2 hours')),
+(1, '新鮮溫室番茄包', 'vegetable', 70, 40, '溫室番茄整袋裝，多汁營養', 'machine', 'AVAILABLE', datetime('now', '+2 hours')),
+(1, '主廚經典沙拉盒', 'vegetable', 80, 45, '新鮮綜合生菜+堅果+特調油醋醬', 'machine', 'AVAILABLE', datetime('now', '+2 hours');
+
 -- 過敏原標籤
 INSERT OR IGNORE INTO product_allergens (product_id, allergen) VALUES
 (1, 'chicken'), (1, 'egg'), (1, 'soy'),
@@ -76,10 +93,28 @@ INSERT OR IGNORE INTO product_allergens (product_id, allergen) VALUES
 (9, 'chicken'), (9, 'egg'),
 (10, 'wheat'), (10, 'milk'),
 (11, 'soy'),
-(12, 'wheat'), (12, 'egg');
+(12, 'wheat'), (12, 'egg'),
+-- 商品 13~20 的過敏原標籤
+(13, 'chicken'), (13, 'soy'),
+(14, 'seafood'), (14, 'soy'),
+(15, 'wheat'), (15, 'milk'),
+(16, 'wheat'), (16, 'egg'), (16, 'milk'),
+(17, 'wheat'), (17, 'sesame'),
+(18, 'soy'),
+(19, 'sesame'),
+(20, 'milk'), (20, 'peanut'), (20, 'treenut');
 
--- 把機台商品放入艙位
+-- 把 12 個機台商品放入艙位（全面補滿補貨！）
 UPDATE compartments SET status = 'STOCKED', product_id = 5, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 1;
 UPDATE compartments SET status = 'STOCKED', product_id = 6, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 2;
+UPDATE compartments SET status = 'STOCKED', product_id = 13, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 3;
 UPDATE compartments SET status = 'STOCKED', product_id = 7, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 4;
 UPDATE compartments SET status = 'STOCKED', product_id = 8, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 5;
+UPDATE compartments SET status = 'STOCKED', product_id = 14, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 6;
+UPDATE compartments SET status = 'STOCKED', product_id = 15, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 7;
+UPDATE compartments SET status = 'STOCKED', product_id = 16, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 8;
+UPDATE compartments SET status = 'STOCKED', product_id = 17, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 9;
+UPDATE compartments SET status = 'STOCKED', product_id = 18, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 10;
+UPDATE compartments SET status = 'STOCKED', product_id = 19, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 11;
+UPDATE compartments SET status = 'STOCKED', product_id = 20, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 12;
+

@@ -128,8 +128,8 @@ class TabletApp {
   /* ── Compartment Grid ── */
   _compartmentGrid(winnerIndex = -1) {
     const slots = this.machineStatus.compartments;
-    // Default 6 empty if none loaded
-    const grid = slots.length ? slots : Array.from({ length: 6 }, (_, i) => ({
+    // Default 12 empty if none loaded
+    const grid = slots.length ? slots : Array.from({ length: 12 }, (_, i) => ({
       number: i + 1, status: 'empty', productName: '',
     }));
 
