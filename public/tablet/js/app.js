@@ -282,8 +282,8 @@ class TabletApp {
           </div>
 
           <div class="pool-info mt-16">
-            <div class="pool-info__count">${poolInfo.count} 項可抽</div>
-            <div class="pool-info__price">平均 $${poolInfo.avgPrice}</div>
+            <div class="pool-info__count">池內商品：${poolInfo.count} 份</div>
+            <div class="pool-info__price">抽一次：$${poolInfo.avgPrice}</div>
             ${poolInfo.count === 0 ? '<div class="pool-warning">沒有符合條件的品項，請減少篩選項目</div>' : ''}
             ${poolInfo.count === 1 ? '<div class="pool-warning" style="background: rgba(211,47,47,0.1); color: #d32f2f;">剩餘 1 個商品時失去隨機趣味，請至首頁直接選購！</div>' : ''}
           </div>
