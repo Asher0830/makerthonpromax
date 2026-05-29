@@ -15,7 +15,11 @@ INSERT OR IGNORE INTO users (email, password, role, name, points) VALUES
 ('kaohsiung-bento@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '港灣便當老闆', 0),
 ('kaohsiung-bakery@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '左營麵包坊老闆', 0),
 ('kaohsiung-veg@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '苓雅食堂老闆', 0),
-('kaohsiung-mix@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '三民食堂老闆', 0);
+('kaohsiung-mix@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '三民食堂老闆', 0),
+('kaohsiung-tea@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '鼓山茶飲老闆', 0),
+('kaohsiung-veg2@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '左營慢活老闆', 0),
+('kaohsiung-pizza@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '楠梓披薩老闆', 0),
+('kaohsiung-baker2@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '博愛烘焙老闆', 0);
 
 -- 測試店家 [L5 NOTE] user_id=2 同一店主擁有兩間店（僅為測試用，正式環境應禁止）
 INSERT OR IGNORE INTO stores (user_id, name, description, address, latitude, longitude, phone) VALUES
@@ -27,7 +31,11 @@ INSERT OR IGNORE INTO stores (user_id, name, description, address, latitude, lon
 (3, '港灣惜食便當', '靠近高雄港的熱騰騰便當與惜食餐盒', '高雄市鹽埕區大勇路11號', 22.6208, 120.2820, '07-5211111'),
 (4, '左營晨光麵包坊', '左營在地現烤麵包與早餐點心', '高雄市左營區博愛二路100號', 22.6855, 120.3028, '07-5222222'),
 (5, '苓雅綠野食堂', '主打高雄在地蔬食與輕食餐盒', '高雄市苓雅區三多四路21號', 22.6137, 120.3012, '07-5333333'),
-(6, '三民好食日常', '三民區日常補給，便當與麵包都有', '高雄市三民區九如一路50號', 22.6478, 120.3120, '07-5444444');
+(6, '三民好食日常', '三民區日常補給，便當與麵包都有', '高雄市三民區九如一路50號', 22.6478, 120.3120, '07-5444444'),
+(7, '鼓山森林茶飲', '手工慢煮清茶，與當日鮮果汁點心組合', '高雄市鼓山區神農路100號', 22.6710, 120.2920, '07-5555555'),
+(8, '左營慢活蔬食坊', '自然熟成有機沙拉與全麥輕食三明治', '高雄市左營區新莊一路300號', 22.6800, 120.3120, '07-5666666'),
+(9, '楠梓日落手工披薩', '手工窯烤即期熱披薩，香濃牽絲', '高雄市楠梓區博愛四路500號', 22.7150, 120.3000, '07-5775777'),
+(10, '博愛小農烘焙坊', '使用在地無毒農產製作的高纖歐式麵包', '高雄市左營區博愛二路450號', 22.6620, 120.3025, '07-5888888');
 
 -- 測試機台
 INSERT OR IGNORE INTO machines (id, name, location_desc, latitude, longitude, total_compartments, status, secret_key) VALUES
@@ -67,7 +75,15 @@ INSERT OR IGNORE INTO products (store_id, name, category, original_price, sellin
 (3, '港灣雞腿便當', 'bento', 105, 65, '高雄港邊限定雞腿便當', 'map', 'AVAILABLE', datetime('now', '+4 hours')),
 (4, '左營豆漿吐司', 'bread', 45, 28, '每日現烤豆漿吐司', 'map', 'AVAILABLE', datetime('now', '+6 hours')),
 (5, '苓雅蔬食拼盤', 'vegetable', 70, 42, '高雄在地新鮮蔬菜拼盤', 'map', 'AVAILABLE', datetime('now', '+4 hours')),
-(6, '三民紅豆菠蘿', 'bread', 38, 22, '熱騰騰紅豆菠蘿麵包', 'map', 'AVAILABLE', datetime('now', '+5 hours'));
+(6, '三民紅豆菠蘿', 'bread', 38, 22, '熱騰騰紅豆菠蘿麵包', 'map', 'AVAILABLE', datetime('now', '+5 hours')),
+(7, '四季春奶蓋茶組', 'bread', 85, 45, '厚奶蓋四季春茶+手打紅豆銅鑼燒', 'map', 'AVAILABLE', datetime('now', '+3 hours')),
+(7, '埔里百香雙Q果茶', 'bread', 75, 40, '新鮮百香果雙Q大杯裝', 'map', 'AVAILABLE', datetime('now', '+3 hours')),
+(8, '慢活招牌沙拉盒', 'vegetable', 120, 69, '綜合有機生菜+蜜地瓜+腰果胡麻醬', 'map', 'AVAILABLE', datetime('now', '+4 hours')),
+(8, '手撕蕈菇全麥三明治', 'bento', 95, 55, '全麥吐司+炒鮮蕈菇+莫札瑞拉起司', 'map', 'AVAILABLE', datetime('now', '+4 hours')),
+(9, '日落雙拼煙燻雞披薩', 'bento', 220, 129, '雙拼美式燻雞與鮮蔬手工披薩(9吋)', 'map', 'AVAILABLE', datetime('now', '+5 hours')),
+(9, '香蒜羅勒瑪格麗特披薩', 'bento', 180, 99, '經典羅勒與番茄莫札瑞拉起司披薩', 'map', 'AVAILABLE', datetime('now', '+5 hours')),
+(10, '小農蜂蜜伯爵歐包', 'bread', 68, 38, '選用大崗山天然蜂蜜與伯爵茶葉', 'map', 'AVAILABLE', datetime('now', '+6 hours')),
+(10, '高纖核桃蔓越莓歐包', 'bread', 75, 42, '無糖低油核桃蔓越莓高纖歐包', 'map', 'AVAILABLE', datetime('now', '+6 hours'));
 
 -- 新增更多機台商品（將 12 艙位完全補滿）
 INSERT OR IGNORE INTO products (store_id, name, category, original_price, selling_price, description, source, status, expires_at) VALUES
