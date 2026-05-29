@@ -5,10 +5,24 @@
 /* Category helpers (getCategoryColor, getCategoryEmoji) are defined in app.js */
 
 async function renderConsumerMapPage() {
+  // 安全清理所有舊地圖實例與全域變數，防止 Leaflet 容器綁定衝突或生命週期銷毀報錯
   if (window._leafletMap) {
-    window._leafletMap.remove();
+    try {
+      window._leafletMap.remove();
+    } catch (e) {
+      console.warn('[Leaflet] 銷毀舊 _leafletMap 實例時發生錯誤:', e);
+    }
     window._leafletMap = null;
   }
+  if (window._mapInstance) {
+    try {
+      window._mapInstance.remove();
+    } catch (e) {
+      console.warn('[Leaflet] 銷毀舊 _mapInstance 實例時發生錯誤:', e);
+    }
+    window._mapInstance = null;
+  }
+
   updateBottomNav('map');
 
   const html = `
