@@ -491,7 +491,7 @@ button { font-family: inherit; }
 
 .map-float-card {
     position: absolute;
-    bottom: 16px;
+    bottom: 80px;
     left: 16px;
     right: 16px;
     z-index: 1000;
