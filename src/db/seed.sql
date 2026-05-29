@@ -10,10 +10,24 @@ INSERT OR IGNORE INTO users (email, password, role, name, points) VALUES
 INSERT OR IGNORE INTO users (email, password, role, name, points) VALUES
 ('store@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '阿美便當老闆', 0);
 
+-- 高雄店家帳號
+INSERT OR IGNORE INTO users (email, password, role, name, points) VALUES
+('kaohsiung-bento@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '港灣便當老闆', 0),
+('kaohsiung-bakery@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '左營麵包坊老闆', 0),
+('kaohsiung-veg@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '苓雅食堂老闆', 0),
+('kaohsiung-mix@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '三民食堂老闆', 0);
+
 -- 測試店家
 INSERT OR IGNORE INTO stores (user_id, name, description, address, latitude, longitude, phone) VALUES
 (2, '阿美便當', '每日新鮮現做便當，用料實在', '台北市大安區忠孝東路四段100號', 25.0418, 121.5437, '02-27001234'),
 (2, '幸福麵包坊', '手工麵包，每日新鮮出爐', '台北市大安區復興南路一段200號', 25.0380, 121.5440, '02-27005678');
+
+-- 高雄店家
+INSERT OR IGNORE INTO stores (user_id, name, description, address, latitude, longitude, phone) VALUES
+(3, '港灣惜食便當', '靠近高雄港的熱騰騰便當與惜食餐盒', '高雄市鹽埕區大勇路11號', 22.6208, 120.2820, '07-5211111'),
+(4, '左營晨光麵包坊', '左營在地現烤麵包與早餐點心', '高雄市左營區博愛二路100號', 22.6855, 120.3028, '07-5222222'),
+(5, '苓雅綠野食堂', '主打高雄在地蔬食與輕食餐盒', '高雄市苓雅區三多四路21號', 22.6137, 120.3012, '07-5333333'),
+(6, '三民好食日常', '三民區日常補給，便當與麵包都有', '高雄市三民區九如一路50號', 22.6478, 120.3120, '07-5444444');
 
 -- 測試機台
 INSERT OR IGNORE INTO machines (id, name, location_desc, latitude, longitude, total_compartments, status, secret_key) VALUES
@@ -42,6 +56,13 @@ INSERT OR IGNORE INTO products (store_id, name, category, original_price, sellin
 (2, '可頌麵包', 'bread', 50, 30, '法式奶油可頌', 'machine', 'AVAILABLE', datetime('now', '+5 hours')),
 (1, '有機蔬菜包', 'vegetable', 60, 35, '當日有機蔬菜組合', 'machine', 'AVAILABLE', datetime('now', '+2 hours'));
 
+-- 高雄地圖商品（source = 'map'）
+INSERT OR IGNORE INTO products (store_id, name, category, original_price, selling_price, description, source, status, expires_at) VALUES
+(3, '港灣雞腿便當', 'bento', 105, 65, '高雄港邊限定雞腿便當', 'map', 'AVAILABLE', datetime('now', '+4 hours')),
+(4, '左營豆漿吐司', 'bread', 45, 28, '每日現烤豆漿吐司', 'map', 'AVAILABLE', datetime('now', '+6 hours')),
+(5, '苓雅蔬食拼盤', 'vegetable', 70, 42, '高雄在地新鮮蔬菜拼盤', 'map', 'AVAILABLE', datetime('now', '+4 hours')),
+(6, '三民紅豆菠蘿', 'bread', 38, 22, '熱騰騰紅豆菠蘿麵包', 'map', 'AVAILABLE', datetime('now', '+5 hours'));
+
 -- 過敏原標籤
 INSERT OR IGNORE INTO product_allergens (product_id, allergen) VALUES
 (1, 'chicken'), (1, 'egg'), (1, 'soy'),
@@ -51,7 +72,11 @@ INSERT OR IGNORE INTO product_allergens (product_id, allergen) VALUES
 (5, 'pork'), (5, 'egg'), (5, 'soy'),
 (6, 'seafood'), (6, 'egg'),
 (7, 'wheat'), (7, 'milk'),
-(8, 'sesame');
+(8, 'sesame'),
+(9, 'chicken'), (9, 'egg'),
+(10, 'wheat'), (10, 'milk'),
+(11, 'soy'),
+(12, 'wheat'), (12, 'egg');
 
 -- 把機台商品放入艙位
 UPDATE compartments SET status = 'STOCKED', product_id = 5, stocked_at = datetime('now'), stocked_by = 2 WHERE machine_id = 'MAC_01A2B3' AND index_num = 1;

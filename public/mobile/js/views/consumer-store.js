@@ -37,6 +37,16 @@ async function renderConsumerStorePage(storeId) {
 
   hideLoading();
 
+  const isExpiredProduct = (product) => {
+    if (!product) return false;
+    if (String(product.status || '').toUpperCase() === 'EXPIRED') return true;
+    if (!product.expiresAt) return false;
+    const expiresAt = new Date(product.expiresAt).getTime();
+    return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+  };
+
+  products = products.filter((product) => !isExpiredProduct(product));
+
   const storeName = store.name || '店家';
   const storeAddress = store.address || '';
   const storePhone = store.phone || '';

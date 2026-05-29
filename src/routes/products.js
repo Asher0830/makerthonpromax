@@ -6,11 +6,81 @@ import { Hono } from 'hono';
 import { query, queryFirst, transaction } from '../db/connection.js';
 import { success, error } from '../utils/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { verifyToken } from '../utils/jwt.js';
 
 const products = new Hono();
 
 const VALID_CATEGORIES = ['bento', 'bread', 'vegetable', 'other'];
 const VALID_SOURCES = ['map', 'machine'];
+const ALLERGEN_ALIASES = {
+    pork: 'pork', '豬肉': 'pork',
+    beef: 'beef', '牛肉': 'beef',
+    chicken: 'chicken', '雞肉': 'chicken',
+    duck: 'duck', '鴨肉': 'duck',
+    lamb: 'lamb', '羊肉': 'lamb',
+    seafood: 'seafood', '海鮮': 'seafood', '魚': 'seafood', '蝦': 'seafood', '蟹': 'seafood', '貝類': 'seafood',
+    egg: 'egg', '蛋': 'egg',
+    milk: 'milk', '牛奶': 'milk',
+    peanut: 'peanut', '花生': 'peanut',
+    treenut: 'treenut', '堅果': 'treenut',
+    wheat: 'wheat', '麩質': 'wheat',
+    soy: 'soy', '大豆': 'soy',
+    sesame: 'sesame', '芝麻': 'sesame',
+};
+
+function normalizeAllergen(value) {
+    if (!value) return null;
+    const key = String(value).trim();
+    return ALLERGEN_ALIASES[key] || ALLERGEN_ALIASES[key.toLowerCase()] || null;
+}
+
+function normalizeAllergens(allergens = []) {
+    if (!Array.isArray(allergens)) return [];
+    return allergens.map(normalizeAllergen).filter(Boolean);
+}
+
+function shapeProductRow(row) {
+    if (!row) return row;
+
+    const storeId = row.store_id ?? row.storeId ?? null;
+    const storeName = row.store_name ?? row.storeName ?? null;
+    const storeLatitude = row.store_latitude ?? row.storeLatitude ?? null;
+    const storeLongitude = row.store_longitude ?? row.storeLongitude ?? null;
+    const storeAddress = row.store_address ?? row.storeAddress ?? null;
+
+    const originalPrice = row.original_price ?? row.originalPrice ?? row.price ?? 0;
+    const sellingPrice = row.selling_price ?? row.sellingPrice ?? row.price ?? 0;
+
+    return {
+        ...row,
+        storeId,
+        storeName,
+        storeLatitude,
+        storeLongitude,
+        storeAddress,
+        originalPrice,
+        sellingPrice,
+        price: sellingPrice,
+        lat: row.lat ?? storeLatitude,
+        lng: row.lng ?? storeLongitude,
+        store: storeId ? {
+            id: storeId,
+            name: storeName,
+            lat: storeLatitude,
+            lng: storeLongitude,
+            address: storeAddress,
+        } : row.store || null,
+        expiresAt: row.expires_at ?? row.expiresAt ?? null,
+        createdAt: row.created_at ?? row.createdAt ?? null,
+        updatedAt: row.updated_at ?? row.updatedAt ?? null,
+    };
+}
+
+function getOptionalUser(c) {
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+    return verifyToken(authHeader.slice(7));
+}
 
 /**
  * 取得商品的過敏原列表
@@ -29,7 +99,14 @@ function getAllergens(productId) {
 products.post('/', requireAuth(), requireRole('store_owner'), async (c) => {
     const user = c.get('user');
     const body = await c.req.json();
-    const { name, category, original_price, selling_price, source, description, allergens, expires_at } = body;
+    const name = body.name?.trim();
+    const category = body.category;
+    const original_price = body.original_price ?? body.originalPrice;
+    const selling_price = body.selling_price ?? body.sellingPrice;
+    const source = body.source;
+    const description = body.description;
+    const allergens = normalizeAllergens(body.allergens);
+    const expires_at = body.expires_at ?? body.expiresAt;
 
     // 驗證必填欄位
     if (!name || !category || original_price == null || selling_price == null || !source) {
@@ -78,7 +155,7 @@ products.post('/', requireAuth(), requireRole('store_owner'), async (c) => {
     const product = queryFirst('SELECT * FROM products WHERE id = ?', [productId]);
     product.allergens = getAllergens(productId);
 
-    return success(c, { product }, 201);
+    return success(c, { product: shapeProductRow(product) }, 201);
 });
 
 /**
@@ -93,6 +170,10 @@ products.get('/', async (c) => {
     const category = c.req.query('category');
     const status = c.req.query('status') || 'AVAILABLE';
     const store_id = c.req.query('store_id');
+    const user = getOptionalUser(c);
+    const now = new Date().toISOString();
+
+    const hideExpired = source === 'map' || (store_id && (!user || user.role !== 'store_owner'));
 
     const conditions = ['p.status = ?'];
     const params = [status];
@@ -113,37 +194,53 @@ products.get('/', async (c) => {
     }
 
     const whereClause = conditions.join(' AND ');
+    const expirationClause = hideExpired ? ' AND (p.expires_at IS NULL OR p.expires_at > ?)' : '';
 
     let productsResult;
 
     if (source === 'map' && !isNaN(lat) && !isNaN(lng)) {
         // 地圖模式：join stores，計算距離，依距離排序
         const distanceExpr = `(sqrt((s.latitude - ${lat}) * (s.latitude - ${lat}) + (s.longitude - ${lng}) * (s.longitude - ${lng})) * 111)`;
+        const queryParams = [...params];
+
+        if (hideExpired) {
+            queryParams.push(now);
+        }
 
         const { results } = query(
             `SELECT p.*,
+                s.id AS store_id,
                 s.name AS store_name, s.latitude AS store_latitude, s.longitude AS store_longitude, s.address AS store_address,
                 ${distanceExpr} AS distance
              FROM products p
              JOIN stores s ON p.store_id = s.id
              WHERE ${whereClause}
+               ${expirationClause}
                AND s.is_active = 1
                AND ${distanceExpr} <= ?
              ORDER BY distance ASC`,
-            [...params, radius]
+            [...queryParams, radius]
         );
         productsResult = results;
     } else {
         // 一般模式或 machine
+        const queryParams = [...params];
+
+        if (hideExpired) {
+            queryParams.push(now);
+        }
+
         const { results } = query(
             `SELECT p.*,
+                s.id AS store_id,
                 s.name AS store_name, s.latitude AS store_latitude, s.longitude AS store_longitude, s.address AS store_address
              FROM products p
              JOIN stores s ON p.store_id = s.id
              WHERE ${whereClause}
+               ${expirationClause}
                AND s.is_active = 1
              ORDER BY p.created_at DESC`,
-            params
+            queryParams
         );
         productsResult = results;
     }
@@ -153,6 +250,8 @@ products.get('/', async (c) => {
         product.allergens = getAllergens(product.id);
     }
 
+    productsResult = productsResult.map(shapeProductRow);
+
     return success(c, { products: productsResult });
 });
 
@@ -161,11 +260,13 @@ products.get('/', async (c) => {
  */
 products.get('/:id', async (c) => {
     const id = parseInt(c.req.param('id'), 10);
+    const user = getOptionalUser(c);
 
     const product = queryFirst(
         `SELECT p.*,
+            s.id AS store_id,
             s.name AS store_name, s.latitude AS store_latitude, s.longitude AS store_longitude,
-            s.address AS store_address, s.phone AS store_phone
+            s.address AS store_address, s.phone AS store_phone, s.user_id AS store_user_id
          FROM products p
          JOIN stores s ON p.store_id = s.id
          WHERE p.id = ?`,
@@ -176,9 +277,17 @@ products.get('/:id', async (c) => {
         return error(c, 'PRODUCT_NOT_FOUND', '找不到此商品', 404);
     }
 
+    const expiresAt = product.expires_at ? new Date(product.expires_at).getTime() : null;
+    const isExpired = Number.isFinite(expiresAt) && expiresAt <= Date.now();
+    const isStoreOwner = user && user.role === 'store_owner' && user.id === product.store_user_id;
+
+    if (isExpired && !isStoreOwner) {
+        return error(c, 'PRODUCT_NOT_FOUND', '找不到此商品', 404);
+    }
+
     product.allergens = getAllergens(id);
 
-    return success(c, { product });
+    return success(c, { product: shapeProductRow(product) });
 });
 
 /**
@@ -201,19 +310,25 @@ products.put('/:id', requireAuth(), requireRole('store_owner'), async (c) => {
     }
 
     const body = await c.req.json();
+    const normalizedBody = {
+        ...body,
+        original_price: body.original_price ?? body.originalPrice,
+        selling_price: body.selling_price ?? body.sellingPrice,
+        expires_at: body.expires_at ?? body.expiresAt,
+    };
     const allowedFields = ['name', 'category', 'original_price', 'selling_price', 'description', 'status', 'expires_at'];
     const updates = [];
     const values = [];
 
     for (const field of allowedFields) {
-        if (body[field] !== undefined) {
+        if (normalizedBody[field] !== undefined) {
             updates.push(`${field} = ?`);
-            values.push(body[field]);
+            values.push(normalizedBody[field]);
         }
     }
 
     // 驗證 category（如有提供）
-    if (body.category && !VALID_CATEGORIES.includes(body.category)) {
+    if (normalizedBody.category && !VALID_CATEGORIES.includes(normalizedBody.category)) {
         return error(c, 'INVALID_CATEGORY', `category 必須是 ${VALID_CATEGORIES.join(', ')} 之一`);
     }
 
@@ -229,8 +344,9 @@ products.put('/:id', requireAuth(), requireRole('store_owner'), async (c) => {
 
         // 更新過敏原（如有提供）
         if (body.allergens && Array.isArray(body.allergens)) {
+            const normalizedAllergens = normalizeAllergens(body.allergens);
             query('DELETE FROM product_allergens WHERE product_id = ?', [id]);
-            for (const allergen of body.allergens) {
+            for (const allergen of normalizedAllergens) {
                 query(
                     'INSERT INTO product_allergens (product_id, allergen) VALUES (?, ?)',
                     [id, allergen]

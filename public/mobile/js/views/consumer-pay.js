@@ -30,9 +30,9 @@ async function renderConsumerPayPage(orderId) {
 
   const productName = order.productName || order.product_name || '惜食商品';
   const amount = order.amount || order.price || 0;
-  const orderSource = order.order_type || order.source || order.type || 'map_purchase';
+  const orderType = order.order_type || order.orderType || order.source || order.type || 'map_purchase';
 
-  const isGacha = orderSource === 'machine_gacha';
+  const isGacha = orderType === 'machine_gacha';
   const isLoggedIn = authManager.isLoggedIn();
 
   // 付款方式選項 HTML (僅展示與視覺切換)
@@ -81,7 +81,7 @@ async function renderConsumerPayPage(orderId) {
     `
     : `
       <button class="btn btn-primary btn-block btn-lg pay-btn" id="pay-btn"
-              onclick="handlePayment('${orderId}', '${orderSource}')">
+              onclick="handlePayment('${orderId}', '${orderType}')">
         確認付款 (LINE Pay)
       </button>
     `;
@@ -151,13 +151,17 @@ async function renderConsumerPayPage(orderId) {
       hideLoading();
 
       /* Build success screen */
-      const pickupCode = result.pickupCode || order.pickupCode || '';
+      const pickupCode = result.pickupCode || result.pickup_code || order.pickupCode || order.pickup_code || '';
 
       let instructionHTML = '';
 
-      if (source === 'machine_purchase' || source === 'machine_gacha') {
+      if (orderType === 'machine_gacha') {
         instructionHTML = `
-          <p class="success-subtitle" style="font-weight: 700; color: var(--primary-color);">請至機台轉動實體旋鈕以啟動抽獎或取餐！</p>
+          <p class="success-subtitle" style="font-weight: 700; color: var(--primary-color);">請至機台轉動實體旋鈕以開始扭蛋抽獎！</p>
+        `;
+      } else if (orderType === 'machine_purchase') {
+        instructionHTML = `
+          <p class="success-subtitle" style="font-weight: 700; color: var(--primary-color);">請至機台轉動旋鈕以開啟已購買的艙門並取餐！</p>
         `;
       } else {
         /* map_purchase or default */
@@ -174,9 +178,16 @@ async function renderConsumerPayPage(orderId) {
           <div class="success-icon" style="font-size: 2.5rem; color: var(--primary-color); font-weight: 700; margin-bottom: 12px;">✓</div>
           <h2 class="success-title">付款成功！</h2>
           ${instructionHTML}
-          <button class="btn btn-secondary btn-block" onclick="router.navigate('/consumer/orders')">
-            查看訂單
-          </button>
+          <div style="display:flex; gap:8px; flex-direction:column;">
+            <button class="btn btn-secondary btn-block" onclick="router.navigate('/consumer/orders')">
+              查看訂單
+            </button>
+            ${(orderType === 'machine_purchase' || orderType === 'machine_gacha') ? `
+            <button class="btn btn-primary btn-block" onclick="handleSimulateDispense('${orderId}', '${orderType}')">
+              ${orderType === 'machine_gacha' ? '模擬付款完成並出餐（測試）' : '模擬付款完成並取餐（測試）'}
+            </button>
+            ` : ''}
+          </div>
         </div>
       `;
 
@@ -188,6 +199,21 @@ async function renderConsumerPayPage(orderId) {
       hideLoading();
       if (payBtn) payBtn.disabled = false;
       showToast(err.message || '付款失敗，請稍後再試', 'error');
+    }
+  };
+
+  /* ── Dev helper: simulate dispense immediately ── */
+  window.handleSimulateDispense = async function (oid, type = 'map_purchase') {
+    try {
+      showLoading();
+      const res = await api.processPaymentAndDispense(oid);
+      hideLoading();
+      showToast(type === 'machine_purchase' ? '已模擬直購取餐：' + (res?.message || '完成') : '已模擬出餐：' + (res?.message || '完成'), 'success');
+      // 導回訂單列表以查看狀態
+      router.navigate('/consumer/orders');
+    } catch (err) {
+      hideLoading();
+      showToast(err.message || '模擬出餐失敗', 'error');
     }
   };
 }

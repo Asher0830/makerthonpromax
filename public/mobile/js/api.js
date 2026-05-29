@@ -79,7 +79,10 @@ class ApiClient {
     // Orders
     getOrders() { return this.request('GET', '/api/v1/orders/me'); }
     getOrder(id) { return this.request('GET', `/api/v1/orders/${id}`); }
-    createOrder(data) { return this.request('POST', '/api/v1/orders/map', { product_id: data.productId }); }
+    async createOrder(data) {
+        const res = await this.request('POST', '/api/v1/orders/map', { product_id: data.productId });
+        return res.order || res;
+    }
     getStoreOrders() { return this.request('GET', '/api/v1/orders/store'); }
     completeOrder(orderId, pickupCode) {
         return this.request('POST', `/api/v1/orders/${orderId}/complete`, { pickup_code: pickupCode });
@@ -87,7 +90,12 @@ class ApiClient {
 
     // Payment
     processPayment(orderId) { 
-        return this.request('POST', `/api/v1/machines/MAC_01A2B3/gacha/pay`, { order_id: parseInt(orderId, 10) });
+        return this.request('POST', '/api/v1/payment/mock/pay', { order_id: parseInt(orderId, 10) });
+    }
+
+    // Dev helper: process payment and immediately dispense (development only)
+    processPaymentAndDispense(orderId) {
+        return this.request('POST', '/api/v1/payment/mock/pay-and-dispense', { order_id: parseInt(orderId, 10) });
     }
 
     // Points

@@ -99,20 +99,6 @@ stores.put('/me', requireAuth(), requireRole('store_owner'), async (c) => {
 });
 
 /**
- * GET /:id — 取得特定店家資訊（消費者用，不需登入）
- */
-stores.get('/:id', async (c) => {
-    const { id } = c.req.param();
-
-    const store = queryFirst('SELECT * FROM stores WHERE id = ?', [parseInt(id)]);
-    if (!store) {
-        return error(c, 'STORE_NOT_FOUND', '找不到該店家', 404);
-    }
-
-    return success(c, { store });
-});
-
-/**
  * GET /nearby — 取得附近的店家（消費者用，不需登入）
  * Query: lat, lng, radius (km, 預設 3)
  */
@@ -139,6 +125,20 @@ stores.get('/nearby', async (c) => {
     );
 
     return success(c, { stores: storesResult });
+});
+
+/**
+ * GET /:id — 取得特定店家資訊（消費者用，不需登入）
+ */
+stores.get('/:id', async (c) => {
+    const { id } = c.req.param();
+
+    const store = queryFirst('SELECT * FROM stores WHERE id = ?', [parseInt(id)]);
+    if (!store) {
+        return error(c, 'STORE_NOT_FOUND', '找不到該店家', 404);
+    }
+
+    return success(c, { store });
 });
 
 export default stores;

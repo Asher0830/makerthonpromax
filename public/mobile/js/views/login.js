@@ -57,7 +57,7 @@ async function renderLoginPage() {
       </form>
 
       <div class="login-link">
-        還沒有帳號？<a href="#/register">註冊</a>
+        還沒有消費者帳號？<a href="#/register">註冊</a>
       </div>
     </div>
   `;

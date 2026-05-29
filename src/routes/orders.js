@@ -7,7 +7,6 @@ import { Hono } from 'hono';
 import { query, queryFirst, transaction } from '../db/connection.js';
 import { success, error } from '../utils/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { calculatePoints, awardPoints, generatePickupCode } from '../services/inventory.js';
 
 const orders = new Hono();
 
@@ -36,43 +35,38 @@ orders.post('/map', requireAuth(), async (c) => {
         return error(c, 'PRODUCT_NOT_AVAILABLE', '商品不存在、已售出、或非地圖導購商品', 400);
     }
 
-    const pickupCode = generatePickupCode();
-    const points = calculatePoints(product.selling_price);
+    const timeoutAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    const result = transaction(() => {
-        // 建立訂單（Mock 付款，直接 PAID）
+    const orderId = transaction(() => {
         const orderResult = query(
-            `INSERT INTO orders (user_id, order_type, store_id, product_id, amount, status, pickup_code, points_earned, paid_at)
-             VALUES (?, 'map_purchase', ?, ?, ?, 'PAID', ?, ?, datetime('now'))`,
-            [user.id, product.store_id, product_id, product.selling_price, pickupCode, points]
+            `INSERT INTO orders (user_id, order_type, store_id, product_id, amount, status, timeout_at)
+             VALUES (?, 'map_purchase', ?, ?, ?, 'PENDING', ?)` ,
+            [user.id, product.store_id, product_id, product.selling_price, timeoutAt]
         );
 
-        const orderId = Number(orderResult.meta.last_row_id);
+        const createdOrderId = Number(orderResult.meta.last_row_id);
 
-        // 標記商品為 RESERVED
+        // 標記商品為 RESERVED，避免被其他人重複下單
         query(
             `UPDATE products SET status = 'RESERVED', updated_at = datetime('now') WHERE id = ?`,
             [product_id]
         );
 
-        // 發放點數
-        awardPoints(user.id, points);
-
-        return orderId;
+        return createdOrderId;
     });
 
     return success(c, {
         order: {
-            id: result,
+            id: orderId,
             order_type: 'map_purchase',
-            status: 'PAID',
+            status: 'PENDING',
             product_id: product.id,
             product_name: product.name,
             store_name: product.store_name,
             amount: product.selling_price,
-            pickup_code: pickupCode,
-            points_earned: points,
+            timeout_at: timeoutAt,
         },
+        message: '訂單已建立，請完成付款',
     }, 201);
 });
 

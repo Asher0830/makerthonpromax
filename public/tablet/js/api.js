@@ -75,9 +75,11 @@ class TabletAPI {
 
     let orderStatus = null;
     let orderId = null;
+    let orderType = null;
     if (data.active_order) {
       orderId = data.active_order.id;
       const s = data.active_order.status;
+      orderType = data.active_order.order_type || null;
       if (s === 'PENDING' || s === 'WAITING_FOR_PAYMENT') orderStatus = 'pending';
       else if (s === 'PAID' || s === 'WAITING_FOR_TRIGGER') orderStatus = 'paid';
       else if (s === 'DISPENSING') orderStatus = 'dispensing';
@@ -93,6 +95,7 @@ class TabletAPI {
       totalStocked: data.pool_summary?.stocked ?? stocked.length,
       averagePrice: avgPrice,
       orderStatus,
+      orderType,
       orderId,
     };
   }
@@ -135,6 +138,11 @@ class TabletAPI {
     });
   }
 
+  // Dev helper: process payment and immediately dispense (development only)
+  processPaymentAndDispense(orderId) {
+    return this._request('POST', '/api/v1/payment/mock/pay-and-dispense', { order_id: orderId });
+  }
+
   /* ── Get latest gacha result ── */
   async getLatestResult(machineId) {
     const res = await this._request('GET', `/api/v1/machines/${machineId}/latest-result`);
@@ -143,6 +151,7 @@ class TabletAPI {
     return {
       orderId: r.order_id,
       status: r.status,
+      orderType: r.order_type || null,
       compartment: r.won.compartment_index, // 1~6 index_num
       productName: r.won.product_name,
       category: { bento: '便當', bread: '麵包', vegetable: '蔬菜', other: '其他' }[r.won.category] || r.won.category,

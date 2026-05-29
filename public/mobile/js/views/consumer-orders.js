@@ -21,13 +21,14 @@ async function renderConsumerOrdersPage() {
 
   /* Sort by date, newest first */
   orders.sort((a, b) => {
-    const dateA = new Date(a.createdAt || 0).getTime();
-    const dateB = new Date(b.createdAt || 0).getTime();
+    const dateA = new Date(a.createdAt || a.created_at || 0).getTime();
+    const dateB = new Date(b.createdAt || b.created_at || 0).getTime();
     return dateB - dateA;
   });
 
   /* Status mapping */
   const statusTextMap = {
+    PENDING: '待付款',
     PAID: '已付款',
     COMPLETED: '已完成',
     TIMEOUT_REFUNDED: '已退款',
@@ -47,17 +48,22 @@ async function renderConsumerOrdersPage() {
     `;
   } else {
     orderListHTML = orders.map((order) => {
-      const source = order.source || order.type || 'map_purchase';
-      const typeLabel = source === 'machine_purchase' || source === 'machine_gacha' ? '[扭蛋]' : '[自取]';
+      const orderType = order.order_type || order.orderType || order.source || order.type || 'map_purchase';
+      const typeLabel = orderType === 'machine_gacha'
+        ? '[扭蛋]'
+        : orderType === 'machine_purchase'
+          ? '[直購]'
+          : '[自取]';
       const productName = order.productName || order.product?.name || '惜食商品';
       const amount = order.amount || order.price || 0;
       const status = order.status || 'PAID';
       const statusText = statusTextMap[status] || status;
-      const pickupCode = order.pickupCode || '';
+      const pickupCode = order.pickupCode || order.pickup_code || '';
 
       /* Format date */
-      const createdDate = order.createdAt
-        ? new Date(order.createdAt).toLocaleDateString('zh-TW', {
+      const createdAt = order.createdAt || order.created_at;
+      const createdDate = createdAt
+        ? new Date(createdAt).toLocaleDateString('zh-TW', {
             year: 'numeric',
             month: 'long',
             day: 'numeric',

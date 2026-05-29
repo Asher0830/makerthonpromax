@@ -64,7 +64,7 @@ export function processTimeouts() {
 
     // 找出所有超時的 WAITING_FOR_TRIGGER 或 PENDING 訂單
     const { results: timedOut } = query(`
-        SELECT id, machine_id, compartment_id, amount, user_id, status
+                SELECT id, machine_id, compartment_id, product_id, order_type, amount, user_id, status
         FROM orders
         WHERE (status = 'WAITING_FOR_TRIGGER' OR status = 'PENDING')
           AND timeout_at < ?
@@ -87,6 +87,14 @@ export function processTimeouts() {
         // 釋放艙位（如果有預留的話）
         if (order.compartment_id) {
             releaseCompartment(order.compartment_id);
+        }
+
+        // 地圖導購的商品會在下單時先標記 RESERVED，超時未付款時改回 AVAILABLE
+        if (order.order_type === 'map_purchase' && order.product_id) {
+            query(
+                `UPDATE products SET status = 'AVAILABLE', updated_at = datetime('now') WHERE id = ?`,
+                [order.product_id]
+            );
         }
 
         const logMsg = order.status === 'PENDING' ? '未付款取消' : '超時退款';

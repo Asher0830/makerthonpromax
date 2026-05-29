@@ -3,6 +3,27 @@
 
 function renderStoreAddItemPage() {
     let selectedSource = 'map';
+    const allergenOptions = [
+        { value: 'seafood', label: '海鮮' },
+        { value: 'pork', label: '豬肉' },
+        { value: 'beef', label: '牛肉' },
+        { value: 'chicken', label: '雞肉' },
+        { value: 'duck', label: '鴨肉' },
+        { value: 'lamb', label: '羊肉' },
+        { value: 'egg', label: '蛋' },
+        { value: 'milk', label: '牛奶' },
+        { value: 'peanut', label: '花生' },
+        { value: 'treenut', label: '堅果' },
+        { value: 'wheat', label: '麩質' },
+        { value: 'soy', label: '大豆' },
+        { value: 'sesame', label: '芝麻' },
+    ];
+
+    const allergenGridHtml = allergenOptions.map((option) => `
+        <label class="allergen-check">
+            <input type="checkbox" name="allergen" value="${option.value}"> ${option.label}
+        </label>
+    `).join('');
 
     const html = `
         <div class="page-header">
@@ -40,7 +61,7 @@ function renderStoreAddItemPage() {
                     <label class="form-label">銷售來源</label>
                     <div class="source-toggle">
                         <div class="source-card selected" id="source-map" onclick="selectSource('map')">
-                            <span>放到地圖平台</span>
+                            <span>上架到平台</span>
                         </div>
                         <div class="source-card" id="source-machine" onclick="selectSource('machine')">
                             <span>放入機台</span>
@@ -51,45 +72,7 @@ function renderStoreAddItemPage() {
                 <div class="form-group">
                     <label class="form-label">過敏原標示</label>
                     <div class="allergen-grid">
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="蝦"> 蝦
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="蟹"> 蟹
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="芒果"> 芒果
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="花生"> 花生
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="牛奶"> 牛奶
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="蛋"> 蛋
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="堅果"> 堅果
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="芝麻"> 芝麻
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="麩質"> 麩質
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="大豆"> 大豆
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="魚"> 魚
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="貝類"> 貝類
-                        </label>
-                        <label class="allergen-check">
-                            <input type="checkbox" name="allergen" value="亞硫酸鹽"> 亞硫酸鹽
-                        </label>
+                        ${allergenGridHtml}
                     </div>
                 </div>
 
@@ -168,11 +151,11 @@ function renderStoreAddItemPage() {
                 await api.createProduct({
                     name: name,
                     category: category,
-                    originalPrice: originalPrice,
-                    sellingPrice: sellingPrice,
+                    original_price: originalPrice,
+                    selling_price: sellingPrice,
                     source: selectedSource,
                     allergens: allergens,
-                    expiresAt: expiresAt
+                    expires_at: expiresAt
                 });
                 hideLoading();
                 showToast('商品上架成功！', 'success');

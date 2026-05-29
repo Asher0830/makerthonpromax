@@ -104,7 +104,17 @@ async function renderConsumerMapPage() {
     const products = data.products || data || [];
     let markerCount = 0;
 
+    const isExpiredProduct = (product) => {
+      if (!product) return false;
+      if (String(product.status || '').toUpperCase() === 'EXPIRED') return true;
+      if (!product.expiresAt) return false;
+      const expiresAt = new Date(product.expiresAt).getTime();
+      return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+    };
+
     products.forEach((product) => {
+      if (isExpiredProduct(product)) return;
+
       const lat = product.lat || (product.store && product.store.lat);
       const lng = product.lng || (product.store && product.store.lng);
 

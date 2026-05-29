@@ -19,7 +19,7 @@ async function renderStoreOrdersPage() {
         if (!Array.isArray(allOrders)) return [];
         switch (tab) {
             case 'pending':
-                return allOrders.filter(o => o.status === 'PAID' && (o.source === 'map_purchase' || o.type === 'map_purchase'));
+                return allOrders.filter(o => o.status === 'PAID' && (o.order_type === 'map_purchase' || o.orderType === 'map_purchase' || o.source === 'map_purchase' || o.type === 'map_purchase'));
             case 'completed':
                 return allOrders.filter(o => o.status === 'COMPLETED');
             default:
@@ -32,6 +32,7 @@ async function renderStoreOrdersPage() {
         const filtered = getFilteredOrders(tab);
 
         const statusMap = {
+            'PENDING': '待付款',
             'PAID': '已付款',
             'COMPLETED': '已完成',
             'TIMEOUT_REFUNDED': '已退款',
@@ -39,6 +40,7 @@ async function renderStoreOrdersPage() {
         };
 
         const statusIcons = {
+            'PENDING': '[待付款]',
             'PAID': '[已付款]',
             'COMPLETED': '[已完成]',
             'TIMEOUT_REFUNDED': '[已退款]',
@@ -60,9 +62,10 @@ async function renderStoreOrdersPage() {
                 const productName = order.productName || order.product_name || order.items?.[0]?.name || '商品';
                 const consumerName = order.consumerName || order.consumer_name || '顧客';
                 const orderId = order.id || order._id || '';
-                const source = order.source || order.type || '';
-                const isMachine = source === 'machine_purchase';
-                const isMapPaid = (source === 'map_purchase') && status === 'PAID';
+                const orderType = order.order_type || order.orderType || order.source || order.type || '';
+                const isMachineDirect = orderType === 'machine_purchase';
+                const isMachineGacha = orderType === 'machine_gacha';
+                const isMapPaid = (orderType === 'map_purchase') && status === 'PAID';
 
                 let verifySection = '';
                 if (isMapPaid) {
@@ -83,7 +86,8 @@ async function renderStoreOrdersPage() {
                             <div class="order-info">
                                 <div class="order-name">${productName}</div>
                                 <div class="order-date">${consumerName} · ${dateStr}</div>
-                                ${isMachine ? '<div style="font-size: 12px; color: var(--text-secondary, #666); margin-top: 2px;">[機台] 機台訂單</div>' : ''}
+                                ${isMachineDirect ? '<div style="font-size: 12px; color: var(--text-secondary, #666); margin-top: 2px;">[機台直購] 機台訂單</div>' : ''}
+                                ${isMachineGacha ? '<div style="font-size: 12px; color: var(--text-secondary, #666); margin-top: 2px;">[機台扭蛋] 機台訂單</div>' : ''}
                             </div>
                             <div class="order-right">
                                 <div class="order-amount">NT$${amount}</div>

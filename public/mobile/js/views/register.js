@@ -10,7 +10,7 @@ async function renderRegisterPage() {
     <div class="login-page">
       <div class="register-header">
         <a href="#/login" class="back-arrow">←</a>
-        <h2 class="register-title">建立帳號</h2>
+        <h2 class="register-title">建立消費者帳號</h2>
       </div>
 
       <form class="login-form" id="register-form" onsubmit="return false;">
@@ -53,15 +53,9 @@ async function renderRegisterPage() {
           />
         </div>
 
-        <div class="form-group">
-          <label class="form-label">選擇身分</label>
-          <div class="role-toggle" id="role-toggle">
-            <div class="role-card selected" data-role="consumer" id="role-consumer" onclick="selectRole('consumer')">
-              <span class="role-card-label">消費者</span>
-            </div>
-            <div class="role-card" data-role="store_owner" id="role-store-owner" onclick="selectRole('store_owner')">
-              <span class="role-card-label">店家</span>
-            </div>
+        <div class="form-group" style="margin-top: 4px;">
+          <div style="padding: 12px 14px; border: 1px solid rgba(28,27,26,0.08); border-radius: 12px; background: var(--bg-secondary); color: var(--text-secondary); font-size: 13px; line-height: 1.5;">
+            目前僅開放消費者註冊。店家請使用系統既有帳號登入後管理機台與商品。
           </div>
         </div>
 
@@ -74,13 +68,6 @@ async function renderRegisterPage() {
 
   renderPage(html);
 
-  /* ── Role selection handler ── */
-  window.selectRole = function (role) {
-    document.querySelectorAll('.role-card').forEach((card) => {
-      card.classList.toggle('selected', card.dataset.role === role);
-    });
-  };
-
   /* ── Bind form submit ── */
   const form = document.getElementById('register-form');
   form.addEventListener('submit', async (e) => {
@@ -91,10 +78,6 @@ async function renderRegisterPage() {
     const password = document.getElementById('register-password').value;
     const errorEl = document.getElementById('register-error');
     const submitBtn = document.getElementById('register-submit-btn');
-
-    /* Get selected role */
-    const selectedCard = document.querySelector('.role-card.selected');
-    const role = selectedCard ? selectedCard.dataset.role : 'consumer';
 
     if (!name || !email || !password) {
       errorEl.textContent = '請填寫所有欄位';
@@ -114,16 +97,11 @@ async function renderRegisterPage() {
       submitBtn.textContent = '註冊中…';
       showLoading();
 
-      await authManager.register(name, email, password, role);
+      await authManager.register(name, email, password, 'consumer');
 
       hideLoading();
 
-      /* Redirect based on role */
-      if (role === 'store_owner') {
-        router.navigate('/store/dashboard');
-      } else {
-        router.navigate('/consumer/map');
-      }
+      router.navigate('/consumer/map');
     } catch (err) {
       hideLoading();
       submitBtn.disabled = false;

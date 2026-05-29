@@ -62,7 +62,7 @@ machines.get('/:machineId/status', async (c) => {
     // 如果有進行中的訂單
     let active_order = null;
     if (machine.active_order_id) {
-        active_order = queryFirst('SELECT id, status, timeout_at FROM orders WHERE id = ?', [machine.active_order_id]);
+        active_order = queryFirst('SELECT id, order_type, status, timeout_at FROM orders WHERE id = ?', [machine.active_order_id]);
     }
 
     return success(c, {
@@ -510,8 +510,8 @@ machines.get('/:machineId/latest-result', async (c) => {
     const { machineId } = c.req.param();
 
     const order = queryFirst(
-        `SELECT o.id, o.status, o.product_id, o.compartment_id, o.points_earned,
-                p.name as product_name, p.category, p.selling_price, p.original_price,
+        `SELECT o.id, o.status, o.order_type, o.product_id, o.compartment_id, o.points_earned,
+            p.name as product_name, p.category, p.selling_price, p.original_price,
                 c.index_num as compartment_index
          FROM orders o
          LEFT JOIN products p ON o.product_id = p.id
@@ -549,6 +549,13 @@ machines.get('/:machineId/latest-result', async (c) => {
 machines.post('/:machineId/complete', async (c) => {
     const { machineId } = c.req.param();
 
+    const dispensingOrders = query(
+        `SELECT id, compartment_id
+         FROM orders
+         WHERE machine_id = ? AND status = 'DISPENSING'`,
+        [machineId]
+    ).results;
+
     transaction(() => {
         // 更新進行中的訂單為 COMPLETED
         query(
@@ -557,6 +564,18 @@ machines.post('/:machineId/complete', async (c) => {
              WHERE machine_id = ? AND status = 'DISPENSING'`,
             [machineId]
         );
+
+        // 已出餐的艙位清空，讓店家可以重新補貨
+        for (const order of dispensingOrders) {
+            if (order.compartment_id) {
+                query(
+                    `UPDATE compartments
+                     SET status = 'EMPTY', product_id = NULL, stocked_at = NULL, stocked_by = NULL
+                     WHERE id = ?`,
+                    [order.compartment_id]
+                );
+            }
+        }
 
         // 重設機台狀態
         query(

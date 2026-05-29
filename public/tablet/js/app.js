@@ -166,7 +166,7 @@ class TabletApp {
      ═══════════════════════════════════════════════════ */
 
   _renderIdle() {
-    const { totalStocked, averagePrice } = this.machineStatus;
+    const { totalStocked } = this.machineStatus;
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
@@ -180,10 +180,6 @@ class TabletApp {
           <div class="stat-item">
             <div class="stat-item__value">${totalStocked || 0}</div>
             <div class="stat-item__label">可抽取品項</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-item__value">$${averagePrice || 0}</div>
-            <div class="stat-item__label">平均價格</div>
           </div>
         </div>
 
@@ -283,9 +279,14 @@ class TabletApp {
           <div class="countdown-bar"><div class="countdown-bar__fill" id="countdown-fill" style="width:100%"></div></div>
         </div>
 
-        <button class="btn btn--danger" onclick="app.onCancelPayment()">
-          ✕ 取消
-        </button>
+        <div style="display:flex; gap:8px; width:100%; max-width:420px;">
+          <button class="btn btn--danger" style="flex:1" onclick="app.onCancelPayment()">
+            ✕ 取消
+          </button>
+          <button class="btn btn--primary" style="flex:1" onclick="app.onSimulatePayment()">
+            模擬付款完成（測試）
+          </button>
+        </div>
       </div>`;
   }
 
@@ -308,12 +309,14 @@ class TabletApp {
   }
 
   _renderGachaAnimation() {
+    const orderType = this.currentResult?.orderType || this.currentOrder?.orderType;
+    const isDirectPurchase = orderType === 'machine_purchase';
     // Build a grid with all compartments for the animation
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
         <h2 class="title title--gradient" style="animation: pulse 0.6s ease-in-out infinite;">
-          抽獎中…
+          ${isDirectPurchase ? '開門中…' : '抽獎中…'}
         </h2>
         <div class="gacha-stage" id="gacha-stage">
           <div class="gacha-reel" id="gacha-reel">
@@ -341,18 +344,20 @@ class TabletApp {
 
   _renderResult() {
     const r = this.currentResult || {};
+    const orderType = this.currentResult?.orderType || this.currentOrder?.orderType;
+    const isDirectPurchase = orderType === 'machine_purchase';
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
-        <h2 class="title title--gold">抽取成功！</h2>
+        <h2 class="title title--gold">${isDirectPurchase ? '購買成功！' : '抽取成功！'}</h2>
 
         <div class="result-card">
-          <div class="result-card__label">中獎格號</div>
+          <div class="result-card__label">${isDirectPurchase ? '艙門編號' : '中獎格號'}</div>
           <div class="result-card__compartment"># ${r.compartment || '?'}</div>
           <div class="result-card__product">${r.productName || '神秘美食'}</div>
           ${r.category ? `<span class="result-card__category">${r.category}</span>` : ''}
           <div class="result-card__message">
-            [領取] 第 ${r.compartment || '?'} 號門已開啟，請取餐！
+            第 ${r.compartment || '?'} 號門已開啟，請取餐！
           </div>
         </div>
 
@@ -452,6 +457,7 @@ class TabletApp {
           orderId: result.orderId,
           amount: result.amount,
           expiresAt: result.expiresAt || (Date.now() + 5 * 60 * 1000),
+          orderType: 'machine_gacha',
         },
       });
     } catch (err) {
@@ -467,6 +473,7 @@ class TabletApp {
           orderId: result.orderId,
           amount: result.amount,
           expiresAt: Date.now() + 5 * 60 * 1000,
+          orderType: 'machine_purchase',
         },
       });
     } catch (err) {
@@ -484,6 +491,31 @@ class TabletApp {
     }
     this.currentOrder = null;
     this.setState('IDLE');
+  }
+
+  async onSimulatePayment() {
+    if (!this.currentOrder || !this.currentOrder.orderId) return;
+    try {
+      // Call dev endpoint to pay and immediately dispense
+      const res = await window.tabletAPI.processPaymentAndDispense(this.currentOrder.orderId);
+      // Keep polling in the trigger state so latest-result can drive the animation
+      if (res) {
+        this.setState('WAITING_TRIGGER');
+      } else {
+        try {
+          const status = await window.tabletAPI.getMachineStatus(this.machineId);
+          if (status) {
+            this.machineStatus = status;
+            this.render();
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    } catch (err) {
+      console.warn('Simulate payment failed:', err);
+      this.setState('ERROR', { errorMessage: err.message || '模擬付款失敗' });
+    }
   }
 
   async onEnterPairMode() {
@@ -566,7 +598,8 @@ class TabletApp {
   }
 
   _startResultCountdown() {
-    let remaining = 15;
+    const isDirectPurchase = this.currentResult?.orderType === 'machine_purchase' || this.currentOrder?.orderType === 'machine_purchase';
+    let remaining = isDirectPurchase ? 8 : 15;
     const tick = () => {
       const el = document.getElementById('result-countdown');
       if (!el) return;
@@ -574,7 +607,18 @@ class TabletApp {
       if (remaining <= 5) el.classList.add('countdown--warning');
       if (remaining <= 0) {
         clearInterval(this._resultTimer);
-        this.setState('IDLE');
+        const finalizeOrder = async () => {
+          try {
+            await window.tabletAPI.completeMachineOrder(this.machineId);
+          } catch (err) {
+            console.warn('Failed to complete machine order:', err);
+          } finally {
+            this.currentOrder = null;
+            this.currentResult = null;
+            this.setState('IDLE');
+          }
+        };
+        finalizeOrder();
       }
       remaining--;
     };
@@ -729,7 +773,11 @@ class TabletApp {
     // Only act if we're waiting for trigger
     if (this.state === 'WAITING_TRIGGER') {
       this.currentResult = result;
-      this.setState('GACHA_ANIMATION');
+      if (this.currentOrder?.orderType === 'machine_purchase' || result.orderType === 'machine_purchase') {
+        this.setState('RESULT');
+      } else {
+        this.setState('GACHA_ANIMATION');
+      }
     }
   }
 
