@@ -121,19 +121,48 @@ async function renderConsumerHomePage() {
       </div>
 
       <!-- Sustainability Banner -->
-      <div class="card" style="margin: 0; padding: 18px; border: 1px solid rgba(0, 128, 85, 0.15); background: var(--accent-light);">
-        <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">惜食綠色行動</div>
-        <p style="font-size: 0.95rem; font-weight: 700; color: var(--text); line-height: 1.4;">每拯救一份剩食，平均可以為地球減少 1.2 kg 的碳排放量。</p>
+      <div class="card" style="margin: 0; padding: 18px; border: 1px solid rgba(0, 128, 85, 0.15); background: var(--accent-light); min-height: 96px; display: flex; flex-direction: column; justify-content: center;">
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">SDGs 永續惜食行動</div>
+        <p id="sdg-slogan" style="font-size: 0.92rem; font-weight: 700; color: var(--text); line-height: 1.45; margin: 0; transition: opacity 0.3s ease-in-out; opacity: 1;">每拯救一份剩食，平均可以為地球減少 1.2 kg 的碳排放量。🌳</p>
       </div>
     </div>
   `;
 
   renderPage(html);
 
+  // SDGs 永續目標多句循環播放邏輯 (每 5.5 秒切換，帶漸隱漸顯動畫)
+  const sdgMessages = [
+    "每拯救一份剩食，平均可以為地球減少 1.2 kg 的碳排放量。🌳",
+    "SDG 2 消除飢餓：透過剩食分流共享與精準媒合，消弭極端飢餓，讓愛物惜食成為溫飽力量。🥣",
+    "SDG 12 責任消費與生產：全球有 1/3 的食物被白白浪費，支持剩食拯救，共創永續循環經濟！♻️",
+    "SDG 13 氣候行動：減少剩食腐爛釋放的強烈溫室氣體，從日常生活減碳，減緩氣候變遷！🌍",
+    "永續惜食統計：多一盒即期餐點被選購，就少一分地球資源的耗費，每一次消費都是綠色決策！✨"
+  ];
+  let sdgIndex = 0;
+  
+  const sdgTimer = setInterval(() => {
+    if (location.hash !== '#/consumer/home') {
+      clearInterval(sdgTimer);
+      return;
+    }
+    const sdgEl = document.getElementById('sdg-slogan');
+    if (sdgEl) {
+      // 1. 漸隱
+      sdgEl.style.opacity = 0;
+      // 2. 更換文字並漸顯
+      setTimeout(() => {
+        sdgIndex = (sdgIndex + 1) % sdgMessages.length;
+        sdgEl.textContent = sdgMessages[sdgIndex];
+        sdgEl.style.opacity = 1;
+      }, 350);
+    }
+  }, 5500);
+
   // 定期輪詢以時時接收並刷新 ESP32 的溫度數值
   const homeTimer = setInterval(async () => {
     if (location.hash !== '#/consumer/home') {
       clearInterval(homeTimer);
+      clearInterval(sdgTimer); // 同步清理 SDGs 定時器，防止記憶體殘留
       return;
     }
     try {
