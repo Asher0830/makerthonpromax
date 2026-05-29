@@ -1,0 +1,23 @@
+{
+  "name": "foodd",
+  "version": "0.1.0",
+  "description": "惜食整合系統 - Food Rescue Integration System",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js",
+    "db:init": "node src/db/init.js",
+    "db:seed": "node src/db/seed-runner.js"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "@hono/node-server": "^1.14.0",
+    "sql.js": "^1.12.0",
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {},
+  "keywords": ["food-rescue", "gacha", "serverless"],
+  "license": "MIT"
+}
