@@ -26,7 +26,7 @@ async function renderConsumerMapPage() {
   updateBottomNav('map');
 
   const html = `
-    <div id="map-container" style="position:relative; width:100%; height:100vh;">
+    <div id="map-container" style="position:relative; width:100%; height:calc(100dvh - var(--nav-height)); overflow:hidden;">
       <div class="map-search-bar">
         <span class="map-search-icon">⌕</span>
         <input
@@ -40,7 +40,7 @@ async function renderConsumerMapPage() {
       <div id="map" style="width:100%; height:100%;"></div>
 
       <!-- Floating Scan QR Button -->
-      <button class="map-scan-btn" onclick="router.navigate('/consumer/scan')" style="position: absolute; bottom: 148px; right: 16px; z-index: 1000; border: none; border-radius: 20px; font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 700; color: #fff; background: var(--primary-color); padding: 10px 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s ease-in-out;">
+      <button class="map-scan-btn" onclick="router.navigate('/consumer/scan')" style="position: absolute; bottom: 84px; right: 16px; z-index: 1000; border: none; border-radius: 20px; font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 700; color: #fff; background: var(--primary-color); padding: 10px 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s ease-in-out;">
         <span>[SCAN]</span> 掃碼起用/付款
       </button>
 
