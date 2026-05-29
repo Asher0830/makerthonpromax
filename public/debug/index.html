@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>終極系統狀態調試與控制後台 - FoodD</title>
+  <!-- Google Fonts: Outfit & Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="debug.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header__container">
+      <span class="header__logo">FoodD Debug</span>
+      <span class="header__tag">終極系統狀態調試與控制面板</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- Top Mock Controls -->
+    <section class="section">
+      <div class="section-title">快捷調試控制台</div>
+      <div class="grid grid--3">
+        <!-- DB Controls -->
+        <div class="card">
+          <div class="card-title">系統與資料庫維護</div>
+          <p class="card-desc">強制將記憶體或硬碟資料重新加載或清空重置</p>
+          <div class="flex-col gap-8 mt-16">
+            <button class="btn btn--danger" onclick="debugAPI.resetDB()">重置資料庫並載入測試種子</button>
+            <button class="btn btn--secondary" onclick="debugAPI.generateProducts()">瞬間產生 5 筆調試商品</button>
+          </div>
+        </div>
+
+        <!-- Telemetry Simulator -->
+        <div class="card">
+          <div class="card-title">ESP32 溫濕度上報模擬</div>
+          <p class="card-desc">手動模擬實體硬體感測器上報數據給機台</p>
+          <div class="flex-col gap-12 mt-16">
+            <div class="slider-group">
+              <label class="slider-label">上報溫度: <span id="temp-val">25</span>°C</label>
+              <input type="range" class="slider" id="temp-slider" min="0" max="45" value="25" oninput="document.getElementById('temp-val').innerText = this.value">
+            </div>
+            <div class="slider-group">
+              <label class="slider-label">上報濕度: <span id="hum-val">65</span>%</label>
+              <input type="range" class="slider" id="hum-slider" min="10" max="95" value="65" oninput="document.getElementById('hum-val').innerText = this.value">
+            </div>
+            <button class="btn btn--primary" onclick="debugAPI.sendTelemetry()">發送溫濕度遙測數據</button>
+          </div>
+        </div>
+
+        <!-- Knob Trigger Simulator -->
+        <div class="card">
+          <div class="card-title">ESP32 轉動旋鈕模擬</div>
+          <p class="card-desc">模擬物理扭蛋流程中，消費者轉動旋鈕觸發開門的瞬間</p>
+          <p class="card-note">（必須先進入 waiting_for_trigger 狀態）</p>
+          <div class="flex-col gap-8 mt-16">
+            <button class="btn btn--primary" onclick="debugAPI.triggerKnob()">發送旋鈕轉動觸發指令</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- State Override & Stocking Grid -->
+    <section class="section">
+      <div class="grid grid--2">
+        <!-- Machine State Override -->
+        <div class="card">
+          <div class="card-title">機台狀態強制覆寫</div>
+          <p class="card-desc">手動切換機台 MAC_01A2B3 的主控狀態</p>
+          <div class="flex-col gap-12 mt-16">
+            <div class="form-group">
+              <label class="form-label">選擇新狀態</label>
+              <select class="form-select" id="machine-state-select">
+                <option value="IDLE">IDLE (待機)</option>
+                <option value="WAITING_FOR_PAYMENT">WAITING_FOR_PAYMENT (等待付款)</option>
+                <option value="WAITING_FOR_TRIGGER">WAITING_FOR_TRIGGER (等待旋鈕)</option>
+                <option value="DISPENSING">DISPENSING (出餐中)</option>
+                <option value="ERROR">ERROR (故障)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">綁定活動訂單 ID (選填)</label>
+              <input type="number" class="form-input" id="active-order-input" placeholder="例如：1">
+            </div>
+            <button class="btn btn--primary" onclick="debugAPI.overrideMachineState()">強制寫入機台狀態</button>
+          </div>
+        </div>
+
+        <!-- Slot Stocking Manager -->
+        <div class="card">
+          <div class="card-title">機台艙位即時管理</div>
+          <p class="card-desc">免登入！直接將指定商品上架到 1 至 6 號機艙</p>
+          <div class="flex-col gap-12 mt-16">
+            <div class="grid grid--2 gap-12" style="grid-template-columns: 1fr 2fr;">
+              <div class="form-group">
+                <label class="form-label">選擇艙門號</label>
+                <select class="form-select" id="compartment-num-select">
+                  <option value="1">1 號門</option>
+                  <option value="2">2 號門</option>
+                  <option value="3">3 號門</option>
+                  <option value="4">4 號門</option>
+                  <option value="5">5 號門</option>
+                  <option value="6">6 號門</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">選擇要放入的商品</label>
+                <select class="form-select" id="product-select">
+                  <option value="">(空/清空艙位)</option>
+                </select>
+              </div>
+            </div>
+            <button class="btn btn--primary" onclick="debugAPI.stockCompartment()">執行即時上架/清空</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- System Visualizer Ledger -->
+    <section class="section">
+      <div class="section-title">全系統實時數據監視器</div>
+      <div class="flex-col gap-24">
+        <!-- Vending Machine Grid -->
+        <div class="card">
+          <div class="card-title">機台 compartments 艙位狀況</div>
+          <div class="compartment-visual-grid mt-16" id="compartments-container"></div>
+        </div>
+
+        <!-- Ledger Tables -->
+        <div class="grid grid--2">
+          <!-- Active Orders -->
+          <div class="card">
+            <div class="card-title">消費者訂單明細</div>
+            <div class="table-container mt-16">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>類別</th>
+                    <th>商品名稱</th>
+                    <th>價格</th>
+                    <th>狀態</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="orders-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Product Pool -->
+          <div class="card">
+            <div class="card-title">現有庫存商品池</div>
+            <div class="table-container mt-16">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>品名</th>
+                    <th>類別</th>
+                    <th>來源</th>
+                    <th>售價</th>
+                  </tr>
+                </thead>
+                <tbody id="products-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__container">
+      開發調試專用面板 — 對比度嚴格遵循 Impeccable Design System 規範
+    </div>
+  </footer>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Main Controller JS -->
+  <script>
+    const machineId = 'MAC_01A2B3';
+
+    // --- Toast Handler ---
+    function showToast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.className = `toast show ${isError ? 'toast--error' : ''}`;
+      setTimeout(() => { t.className = 'toast'; }, 3000);
+    }
+
+    // --- Debug API ---
+    const debugAPI = {
+      async loadStatus() {
+        try {
+          const res = await fetch('/api/v1/debug/status');
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || '載入失敗');
+          
+          this.renderStatus(data.data);
+        } catch (err) {
+          showToast('資料載入失敗: ' + err.message, true);
+        }
+      },
+
+      renderStatus(data) {
+        // 1. Render machine selection options
+        const machine = data.machines.find(m => m.id === machineId) || data.machines[0];
+        if (machine) {
+          document.getElementById('machine-state-select').value = machine.status;
+          document.getElementById('active-order-input').value = machine.active_order_id || '';
+        }
+
+        // 2. Render product options for compartment stocking selector
+        const productSelect = document.getElementById('product-select');
+        productSelect.innerHTML = '<option value="">(空/清空艙位)</option>';
+        data.products.forEach(p => {
+          productSelect.innerHTML += `<option value="${p.id}">[ID:${p.id}] ${p.name} ($${p.selling_price})</option>`;
+        });
+
+        // 3. Render Compartment visualizer
+        const compContainer = document.getElementById('compartments-container');
+        compContainer.innerHTML = '';
+        for (let i = 1; i <= 6; i++) {
+          const slot = data.compartments.find(c => c.index_num === i) || { index_num: i, status: 'EMPTY' };
+          const isWinner = machine && machine.status === 'DISPENSING' && machine.active_order_id && slot.status === 'RESERVED';
+          let slotClass = 'comp-slot';
+          if (slot.status === 'STOCKED') slotClass += ' comp-slot--stocked';
+          else if (slot.status === 'RESERVED') slotClass += ' comp-slot--reserved';
+          else if (slot.status === 'DISPENSED') slotClass += ' comp-slot--dispensed';
+          else slotClass += ' comp-slot--empty';
+
+          if (isWinner) slotClass += ' comp-slot--winner';
+
+          const label = { STOCKED: '已補貨', EMPTY: '空艙位', RESERVED: '已預留', DISPENSED: '已出餐' }[slot.status] || slot.status;
+
+          compContainer.innerHTML += `
+            <div class="${slotClass}">
+              <div class="comp-slot__number">${slot.index_num}</div>
+              <div class="comp-slot__status">${label}</div>
+              <div class="comp-slot__product">${slot.product_name || '無商品'}</div>
+              ${slot.product_price ? `<div class="comp-slot__price">$${slot.product_price}</div>` : ''}
+            </div>
+          `;
+        }
+
+        // 4. Render active orders table
+        const ordersTbody = document.getElementById('orders-tbody');
+        ordersTbody.innerHTML = '';
+        if (data.orders.length === 0) {
+          ordersTbody.innerHTML = '<tr><td colspan="6" class="text-center">無訂單紀錄</td></tr>';
+        } else {
+          data.orders.slice(0, 15).forEach(o => {
+            const statusLabel = { PENDING: '待付款', WAITING_FOR_TRIGGER: '待轉動', DISPENSING: '出餐中', COMPLETED: '已完成', CANCELLED: '已取消' }[o.status] || o.status;
+            let actBtn = '';
+            if (o.status !== 'COMPLETED' && o.status !== 'CANCELLED') {
+              actBtn = `<button class="btn btn--small btn--primary" onclick="debugAPI.completeOrder(${o.id})">核銷</button>`;
+            }
+
+            ordersTbody.innerHTML += `
+              <tr>
+                <td>${o.id}</td>
+                <td>${o.order_type === 'machine_gacha' ? '扭蛋' : '直購'}</td>
+                <td>${o.product_name || '(隨機池)'}</td>
+                <td>$${o.amount}</td>
+                <td><span class="status-badge status--${o.status}">${statusLabel}</span></td>
+                <td>${actBtn}</td>
+              </tr>
+            `;
+          });
+        }
+
+        // 5. Render product pool table
+        const productsTbody = document.getElementById('products-tbody');
+        productsTbody.innerHTML = '';
+        if (data.products.length === 0) {
+          productsTbody.innerHTML = '<tr><td colspan="5" class="text-center">無上架商品</td></tr>';
+        } else {
+          data.products.slice(0, 15).forEach(p => {
+            const catName = { bento: '便當', bread: '麵包', vegetable: '蔬菜', other: '其他' }[p.category] || p.category;
+            const srcName = p.source === 'machine' ? '機台' : '地圖';
+            productsTbody.innerHTML += `
+              <tr>
+                <td>${p.id}</td>
+                <td>${p.name}</td>
+                <td>${catName}</td>
+                <td>${srcName}</td>
+                <td>$${p.selling_price}</td>
+              </tr>
+            `;
+          });
+        }
+      },
+
+      async resetDB() {
+        if (!confirm('您確定要清空並重設資料庫與所有艙位嗎？')) return;
+        try {
+          const res = await fetch('/api/v1/debug/db/reset', { method: 'POST' });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          showToast('資料庫重置成功');
+          this.loadStatus();
+        } catch (err) {
+          showToast('重置失敗: ' + err.message, true);
+        }
+      },
+
+      async generateProducts() {
+        try {
+          const res = await fetch('/api/v1/debug/products/create', { method: 'POST' });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          showToast('成功產生 5 筆調試商品');
+          this.loadStatus();
+        } catch (err) {
+          showToast('產生失敗: ' + err.message, true);
+        }
+      },
+
+      async sendTelemetry() {
+        const temperature = parseFloat(document.getElementById('temp-slider').value);
+        const humidity = parseFloat(document.getElementById('hum-slider').value);
+        try {
+          const res = await fetch('/api/v1/debug/machine/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ machineId, temperature, humidity })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          showToast('遙測溫濕度上報成功');
+          this.loadStatus();
+        } catch (err) {
+          showToast('上報失敗: ' + err.message, true);
+        }
+      },
+
+      async triggerKnob() {
+        try {
+          const res = await fetch('/api/v1/debug/machine/trigger-knob', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ machineId })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || '發送失敗');
+          showToast('旋鈕轉動訊號發送成功，已開門出餐！');
+          this.loadStatus();
+        } catch (err) {
+          showToast('發送失敗: ' + err.message, true);
+        }
+      },
+
+      async overrideMachineState() {
+        const status = document.getElementById('machine-state-select').value;
+        const activeOrderId = parseInt(document.getElementById('active-order-input').value) || null;
+        try {
+          const res = await fetch('/api/v1/debug/machine/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ machineId, status, activeOrderId })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          showToast(`機台狀態已成功強制變更為 ${status}`);
+          this.loadStatus();
+        } catch (err) {
+          showToast('強制變更失敗: ' + err.message, true);
+        }
+      },
+
+      async stockCompartment() {
+        const indexNum = parseInt(document.getElementById('compartment-num-select').value);
+        const productId = document.getElementById('product-select').value || null;
+        try {
+          const res = await fetch('/api/v1/debug/machine/compartment/stock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ machineId, indexNum, productId })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          showToast(`${indexNum} 號機艙狀態已更新`);
+          this.loadStatus();
+        } catch (err) {
+          showToast('上架失敗: ' + err.message, true);
+        }
+      },
+
+      async completeOrder(orderId) {
+        try {
+          const res = await fetch('/api/v1/debug/orders/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          showToast(`訂單 ${orderId} 核銷完成`);
+          this.loadStatus();
+        } catch (err) {
+          showToast('核銷失敗: ' + err.message, true);
+        }
+      }
+    };
+
+    // --- Auto Refresh Ledger (every 3 seconds) ---
+    debugAPI.loadStatus();
+    setInterval(() => debugAPI.loadStatus(), 3000);
+  </script>
+</body>
+</html>

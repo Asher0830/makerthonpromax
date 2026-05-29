@@ -39,8 +39,7 @@ async function renderConsumerOrdersPage() {
   if (orders.length === 0) {
     orderListHTML = `
       <div class="empty-state">
-        <div class="empty-state-icon">📋</div>
-        <div class="empty-state-text">還沒有訂單</div>
+        <div class="empty-state-text" style="font-size: var(--fs-body); color: var(--text-muted); margin-bottom: 16px;">目前還沒有任何訂單紀錄</div>
         <button class="btn btn-primary" onclick="router.navigate('/consumer/map')">
           去逛逛
         </button>
@@ -49,7 +48,7 @@ async function renderConsumerOrdersPage() {
   } else {
     orderListHTML = orders.map((order) => {
       const source = order.source || order.type || 'map_purchase';
-      const typeEmoji = source === 'machine_purchase' ? '🎰' : '🗺️';
+      const typeLabel = source === 'machine_purchase' || source === 'machine_gacha' ? '[扭蛋]' : '[自取]';
       const productName = order.productName || order.product?.name || '惜食商品';
       const amount = order.amount || order.price || 0;
       const status = order.status || 'PAID';
@@ -70,7 +69,7 @@ async function renderConsumerOrdersPage() {
       return `
         <div class="card order-card" onclick="toggleOrderDetail('${order.id}')">
           <div class="order-card-main">
-            <div class="order-icon">${typeEmoji}</div>
+            <div class="order-icon" style="font-size: 0.9rem; font-weight: 700; color: var(--primary-color);">${typeLabel}</div>
             <div class="order-info">
               <div class="order-name">${productName}</div>
               <div class="order-date">${createdDate}</div>

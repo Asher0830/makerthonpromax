@@ -89,7 +89,10 @@ async function renderStoreDashboardPage() {
         </div>
         <div class="page-content">
             <div class="card greeting-card">
-                <h2>你好, ${userName}! 👋</h2>
+                <h2 class="greeting-text">你好, ${userName}!</h2>
+                <button class="btn-logout" onclick="authManager.logout()">
+                    登出
+                </button>
             </div>
 
             <div class="stats-grid">
@@ -108,11 +111,11 @@ async function renderStoreDashboardPage() {
             </div>
 
             <div class="quick-actions">
-                <button class="quick-action-btn" style="background: var(--primary-color, #22c55e); color: #fff;" onclick="router.navigate('/store/add-item')">
-                    ➕ 上架商品
+                <button class="quick-action-btn action-primary" onclick="router.navigate('/store/add-item')">
+                    上架商品
                 </button>
-                <button class="quick-action-btn" style="border: 2px solid var(--primary-color, #22c55e); color: var(--primary-color, #22c55e); background: transparent;" onclick="router.navigate('/store/pair')">
-                    🔗 配對機台
+                <button class="quick-action-btn action-secondary" onclick="router.navigate('/store/pair')">
+                    配對機台
                 </button>
             </div>
 

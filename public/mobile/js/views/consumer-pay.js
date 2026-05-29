@@ -19,7 +19,6 @@ async function renderConsumerPayPage(orderId) {
       </div>
       <div class="page-content">
         <div class="empty-state">
-          <div class="empty-state-icon">😵</div>
           <div class="empty-state-text">無法載入訂單</div>
         </div>
       </div>
@@ -29,9 +28,63 @@ async function renderConsumerPayPage(orderId) {
 
   hideLoading();
 
-  const productName = order.productName || order.product?.name || '惜食商品';
+  const productName = order.productName || order.product_name || '惜食商品';
   const amount = order.amount || order.price || 0;
-  const orderSource = order.source || order.type || 'map_purchase';
+  const orderSource = order.order_type || order.source || order.type || 'map_purchase';
+
+  const isGacha = orderSource === 'machine_gacha';
+  const isLoggedIn = authManager.isLoggedIn();
+
+  // 付款方式選項 HTML (僅展示與視覺切換)
+  const paymentMethodsHTML = `
+    <div class="payment-methods" style="margin-top: 20px; margin-bottom: 20px; text-align: left;">
+      <div style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; letter-spacing: -0.3px;">選擇付款方式 (展示專用)</div>
+      
+      <div class="pay-method-option active" data-method="LINE Pay" onclick="selectPaymentOption(this)" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid var(--primary-color); border-radius: 8px; background: var(--bg-secondary); margin-bottom: 8px; cursor: pointer; transition: all 0.2s ease;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="pay-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-color); transition: all 0.2s ease;"></div>
+          <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary); transition: all 0.2s ease;">LINE Pay</span>
+        </div>
+        <span style="font-size: 0.75rem; color: var(--primary-color); font-weight: 600;">推薦</span>
+      </div>
+
+      <div class="pay-method-option" data-method="Apple Pay" onclick="selectPaymentOption(this)" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid rgba(28,27,26,0.08); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s ease;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="pay-dot" style="width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(28,27,26,0.2); transition: all 0.2s ease;"></div>
+          <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-primary); transition: all 0.2s ease;">Apple Pay</span>
+        </div>
+      </div>
+
+      <div class="pay-method-option" data-method="信用卡" onclick="selectPaymentOption(this)" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid rgba(28,27,26,0.08); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s ease;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="pay-dot" style="width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(28,27,26,0.2); transition: all 0.2s ease;"></div>
+          <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-primary); transition: all 0.2s ease;">信用卡 / 簽帳卡</span>
+        </div>
+      </div>
+
+      <div class="pay-method-option" data-method="FoodD 餘額" onclick="selectPaymentOption(this)" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid rgba(28,27,26,0.08); border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="pay-dot" style="width: 8px; height: 8px; border-radius: 50%; border: 1px solid rgba(28,27,26,0.2); transition: all 0.2s ease;"></div>
+          <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-primary); transition: all 0.2s ease;">FoodD 餘額支付</span>
+        </div>
+        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">$0</span>
+      </div>
+    </div>
+  `;
+
+  const buttonHTML = isGacha && !isLoggedIn
+    ? `
+      <button class="btn btn-primary btn-block btn-lg pay-btn" id="pay-btn"
+              onclick="redirectToLoginForGacha('${orderId}')">
+        登入會員以進行抽獎
+      </button>
+    `
+    : `
+      <button class="btn btn-primary btn-block btn-lg pay-btn" id="pay-btn"
+              onclick="handlePayment('${orderId}', '${orderSource}')">
+        確認付款 (LINE Pay)
+      </button>
+    `;
 
   const html = `
     <div class="page-header">
@@ -44,14 +97,48 @@ async function renderConsumerPayPage(orderId) {
         <div class="pay-amount">NT$${amount}</div>
       </div>
 
-      <button class="btn btn-primary btn-block btn-lg pay-btn" id="pay-btn"
-              onclick="handlePayment('${orderId}', '${orderSource}')">
-        💳 模擬付款
-      </button>
+      ${paymentMethodsHTML}
+      ${buttonHTML}
     </div>
   `;
 
   renderPage(html);
+
+  /* ── Payment Option Switcher ── */
+  window.selectPaymentOption = function (el) {
+    // Reset all options
+    document.querySelectorAll('.pay-method-option').forEach(option => {
+      option.classList.remove('active');
+      option.style.borderColor = 'rgba(28,27,26,0.08)';
+      option.style.background = 'transparent';
+      option.querySelector('span').style.fontWeight = '500';
+      const dot = option.querySelector('.pay-dot');
+      dot.style.background = 'transparent';
+      dot.style.border = '1px solid rgba(28,27,26,0.2)';
+    });
+
+    // Set selected active
+    el.classList.add('active');
+    el.style.borderColor = 'var(--primary-color)';
+    el.style.background = 'var(--bg-secondary)';
+    el.querySelector('span').style.fontWeight = '600';
+    const activeDot = el.querySelector('.pay-dot');
+    activeDot.style.background = 'var(--primary-color)';
+    activeDot.style.border = 'none';
+
+    // Update main pay button text dynamically
+    const payBtn = document.getElementById('pay-btn');
+    if (payBtn && payBtn.textContent.trim() !== '登入會員以進行抽獎') {
+      const methodName = el.getAttribute('data-method');
+      payBtn.textContent = `確認付款 (${methodName})`;
+    }
+  };
+
+  /* ── Redirect handler ── */
+  window.redirectToLoginForGacha = function (oid) {
+    localStorage.setItem('redirect_after_login', `#/consumer/pay/${oid}`);
+    router.navigate('/login');
+  };
 
   /* ── Payment handler ── */
   window.handlePayment = async function (oid, source) {
@@ -68,9 +155,9 @@ async function renderConsumerPayPage(orderId) {
 
       let instructionHTML = '';
 
-      if (source === 'machine_purchase') {
+      if (source === 'machine_purchase' || source === 'machine_gacha') {
         instructionHTML = `
-          <p class="success-subtitle">請至機台轉動旋鈕取貨</p>
+          <p class="success-subtitle" style="font-weight: 700; color: var(--primary-color);">請至機台轉動實體旋鈕以啟動抽獎或取餐！</p>
         `;
       } else {
         /* map_purchase or default */
@@ -84,7 +171,7 @@ async function renderConsumerPayPage(orderId) {
 
       const successHTML = `
         <div class="success-screen">
-          <div class="success-icon">✅</div>
+          <div class="success-icon" style="font-size: 2.5rem; color: var(--primary-color); font-weight: 700; margin-bottom: 12px;">✓</div>
           <h2 class="success-title">付款成功！</h2>
           ${instructionHTML}
           <button class="btn btn-secondary btn-block" onclick="router.navigate('/consumer/orders')">

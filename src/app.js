@@ -14,6 +14,7 @@ import productRoutes from './routes/products.js';
 import machineRoutes from './routes/machines.js';
 import orderRoutes from './routes/orders.js';
 import paymentRoutes from './routes/payment.js';
+import debugRoutes from './routes/debug.js';
 
 const app = new Hono();
 
@@ -32,6 +33,7 @@ app.route('/api/v1/products', productRoutes);
 app.route('/api/v1/machines', machineRoutes);
 app.route('/api/v1/orders', orderRoutes);
 app.route('/api/v1/payment', paymentRoutes);
+app.route('/api/v1/debug', debugRoutes);
 
 // ============================================
 // 健康檢查
@@ -58,7 +60,7 @@ app.notFound((c) => {
 // 全域錯誤處理
 // ============================================
 app.onError((err, c) => {
-    console.error('❌ 未處理的錯誤:', err);
+    console.error('[ERR] 未處理的錯誤:', err);
     return c.json({
         success: false,
         error: {

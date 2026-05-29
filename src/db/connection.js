@@ -34,10 +34,10 @@ export async function initDB() {
     if (existsSync(dbPath)) {
         const buffer = readFileSync(dbPath);
         db = new SQL.Database(buffer);
-        console.log('📂 載入既有資料庫:', dbPath);
+        console.log('[DB] 載入既有資料庫:', dbPath);
     } else {
         db = new SQL.Database();
-        console.log('🆕 建立新資料庫:', dbPath);
+        console.log('[DB] 建立新資料庫:', dbPath);
     }
 
     // 啟用外鍵約束
@@ -88,7 +88,7 @@ export function initSchema() {
     const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf-8');
     database.run(schema);
     saveDB();
-    console.log('✅ 資料表初始化完成');
+    console.log('[DB] 資料表初始化完成');
 }
 
 /**
@@ -105,12 +105,12 @@ export function loadSeed() {
         } catch (err) {
             // INSERT OR IGNORE 失敗時忽略（重複資料）
             if (!err.message.includes('UNIQUE constraint')) {
-                console.warn('⚠ Seed warning:', err.message);
+                console.warn('[DB WARNING] Seed warning:', err.message);
             }
         }
     }
     saveDB();
-    console.log('✅ 測試資料載入完成');
+    console.log('[DB] 測試資料載入完成');
 }
 
 /**

@@ -39,16 +39,16 @@ async function renderStoreOrdersPage() {
         };
 
         const statusIcons = {
-            'PAID': '💳',
-            'COMPLETED': '✅',
-            'TIMEOUT_REFUNDED': '↩️',
-            'CANCELLED': '❌'
+            'PAID': '[已付款]',
+            'COMPLETED': '[已完成]',
+            'TIMEOUT_REFUNDED': '[已退款]',
+            'CANCELLED': '[已取消]'
         };
 
         let ordersHtml = '';
 
         if (filtered.length === 0) {
-            ordersHtml = '<div class="empty-state">📋 還沒有訂單</div>';
+            ordersHtml = '<div class="empty-state">目前還沒有任何訂單紀錄</div>';
         } else {
             ordersHtml = filtered.map(order => {
                 const date = new Date(order.createdAt || order.created_at);
@@ -56,7 +56,7 @@ async function renderStoreOrdersPage() {
                 const amount = Number(order.totalAmount || order.total_amount || order.amount || 0);
                 const status = order.status || 'PAID';
                 const statusText = statusMap[status] || status;
-                const icon = statusIcons[status] || '📦';
+                const icon = statusIcons[status] || '[訂單]';
                 const productName = order.productName || order.product_name || order.items?.[0]?.name || '商品';
                 const consumerName = order.consumerName || order.consumer_name || '顧客';
                 const orderId = order.id || order._id || '';
@@ -83,7 +83,7 @@ async function renderStoreOrdersPage() {
                             <div class="order-info">
                                 <div class="order-name">${productName}</div>
                                 <div class="order-date">${consumerName} · ${dateStr}</div>
-                                ${isMachine ? '<div style="font-size: 12px; color: var(--text-secondary, #666); margin-top: 2px;">🏪 機台訂單</div>' : ''}
+                                ${isMachine ? '<div style="font-size: 12px; color: var(--text-secondary, #666); margin-top: 2px;">[機台] 機台訂單</div>' : ''}
                             </div>
                             <div class="order-right">
                                 <div class="order-amount">NT$${amount}</div>

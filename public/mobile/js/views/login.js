@@ -19,7 +19,7 @@ async function renderLoginPage() {
   const html = `
     <div class="login-page">
       <div class="login-logo">
-        <div class="logo-icon">🍱</div>
+        <div class="logo-icon" style="font-family:'Outfit',sans-serif; font-weight:800; font-size:2rem; letter-spacing:-1px; color:var(--primary-color);">FD</div>
         <h1 class="logo-title">惜食救援</h1>
         <p class="logo-subtitle">讓美食不被浪費</p>
       </div>
@@ -91,7 +91,11 @@ async function renderLoginPage() {
       hideLoading();
 
       /* Redirect based on role */
-      if (authManager.isStoreOwner()) {
+      const redirectHash = localStorage.getItem('redirect_after_login');
+      if (redirectHash) {
+        localStorage.removeItem('redirect_after_login');
+        location.hash = redirectHash;
+      } else if (authManager.isStoreOwner()) {
         router.navigate('/store/dashboard');
       } else {
         router.navigate('/consumer/map');

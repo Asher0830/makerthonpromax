@@ -37,7 +37,7 @@ async function renderStorePairPage() {
                 </div>
                 <div class="page-content">
                     <div class="success-screen">
-                        <div class="success-icon">✅</div>
+                        <div class="success-icon" style="font-size: 2.5rem; color: var(--primary-color); font-weight: 700; margin-bottom: 12px;">✓</div>
                         <h2 class="success-title">配對成功！</h2>
                         <p style="color: var(--text-secondary, #666); margin-bottom: 24px;">${machineName}</p>
                         <button class="btn btn-primary btn-block" onclick="router.navigate('/store/machine/${machineId}')">管理機台</button>
@@ -55,7 +55,7 @@ async function renderStorePairPage() {
                 </div>
                 <div class="page-content">
                     <div class="card" style="text-align: center; padding: 40px 20px;">
-                        <div style="font-size: 48px; margin-bottom: 16px;">❌</div>
+                        <div style="font-size: 2.5rem; color: #d32f2f; font-weight: 700; margin-bottom: 16px;">✕</div>
                         <h3 style="margin-bottom: 8px;">配對失敗</h3>
                         <p style="color: var(--text-secondary, #666); margin-bottom: 24px;">${err.message || '請稍後再試'}</p>
                         <button class="btn btn-primary btn-block" onclick="router.navigate('/store/pair')">重新嘗試</button>
@@ -72,7 +72,7 @@ async function renderStorePairPage() {
             </div>
             <div class="page-content">
                 <div class="card" style="text-align: center; padding: 24px;">
-                    <div style="font-size: 48px; margin-bottom: 16px;">📷</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-color); margin-bottom: 16px;">[SCAN]</div>
                     <p style="font-weight: 600; margin-bottom: 8px;">掃描 QR Code</p>
                     <p style="color: var(--text-secondary, #666); font-size: 14px; margin-bottom: 24px;">請掃描機台上的 QR Code 進行配對</p>
                     <div id="qr-reader" style="width: 100%; max-width: 350px; margin: 0 auto; border-radius: 12px; overflow: hidden;"></div>
@@ -92,11 +92,14 @@ async function renderStorePairPage() {
             }
 
             const scanner = new Html5Qrcode('qr-reader');
+            window.activeQRScanner = scanner;
+
             scanner.start(
                 { facingMode: 'environment' },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
                 (decodedText) => {
                     scanner.stop().then(() => {
+                        window.activeQRScanner = null;
                         // Parse QR code - it might be a full URL with token param
                         try {
                             const url = new URL(decodedText);

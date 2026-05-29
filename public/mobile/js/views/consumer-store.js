@@ -21,7 +21,6 @@ async function renderConsumerStorePage(storeId) {
       </div>
       <div class="page-content">
         <div class="empty-state">
-          <div class="empty-state-icon">😵</div>
           <div class="empty-state-text">無法載入店家資料</div>
         </div>
       </div>
@@ -48,7 +47,6 @@ async function renderConsumerStorePage(storeId) {
   if (products.length === 0) {
     productListHTML = `
       <div class="empty-state">
-        <div class="empty-state-icon">🍽️</div>
         <div class="empty-state-text">目前沒有商品</div>
       </div>
     `;
@@ -126,8 +124,8 @@ async function renderConsumerStorePage(storeId) {
 
     <div class="page-content">
       <div class="card store-info-card">
-        ${storeAddress ? `<div class="store-info-row">📍 ${storeAddress}</div>` : ''}
-        ${storePhone ? `<div class="store-info-row">📞 ${storePhone}</div>` : ''}
+        ${storeAddress ? `<div class="store-info-row" style="font-size: var(--fs-body); color: var(--text-secondary); margin-bottom: 8px;">地址: ${storeAddress}</div>` : ''}
+        ${storePhone ? `<div class="store-info-row" style="font-size: var(--fs-body); color: var(--text-secondary);">電話: ${storePhone}</div>` : ''}
       </div>
 
       <div class="product-list">

@@ -22,6 +22,9 @@ class ApiClient {
         if (res.status === 401) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            if (location.hash && !location.hash.includes('/login') && !location.hash.includes('/register')) {
+                localStorage.setItem('redirect_after_login', location.hash);
+            }
             location.hash = '#/login';
             throw new Error('未授權，請重新登入');
         }

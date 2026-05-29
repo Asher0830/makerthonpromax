@@ -63,6 +63,8 @@ class TabletAPI {
       status: (c.status || '').toLowerCase(), // convert 'STOCKED' -> 'stocked', 'EMPTY' -> 'empty'
       productName: c.product_name || '',
       price: c.selling_price || 0,
+      category: c.category || '',
+      allergens: c.allergens || [],
     }));
 
     // Calculate average price of stocked items
@@ -96,9 +98,10 @@ class TabletAPI {
   }
 
   /* ── Start gacha ── */
-  async startGacha(machineId, excludedAllergens = []) {
+  async startGacha(machineId, excludedAllergens = [], category = null) {
     const res = await this._request('POST', `/api/v1/machines/${machineId}/gacha/start`, {
       excluded_allergens: excludedAllergens,
+      category,
     });
     return {
       orderId: res.data.order_id,

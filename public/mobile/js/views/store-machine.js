@@ -61,7 +61,7 @@ async function renderStoreMachinePage(machineId) {
             return `
                 <div class="compartment-card empty">
                     <div class="compartment-number">格 ${num}</div>
-                    <div class="compartment-empty">🍽️ 空格</div>
+                    <div class="compartment-empty">空格</div>
                     <button class="btn btn-primary btn-sm" onclick="openStockModal('${machineId}', ${num})">放入商品</button>
                 </div>
             `;

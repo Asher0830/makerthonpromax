@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS machines (
     longitude           REAL,
     total_compartments  INTEGER NOT NULL DEFAULT 6,
     status              TEXT NOT NULL DEFAULT 'IDLE'
-                        CHECK(status IN ('IDLE', 'WAITING_FOR_TRIGGER', 'DISPENSING', 'ERROR', 'MAINTENANCE')),
+                        CHECK(status IN ('IDLE', 'WAITING_FOR_PAYMENT', 'WAITING_FOR_TRIGGER', 'DISPENSING', 'ERROR', 'MAINTENANCE')),
     active_order_id     INTEGER,
     secret_key          TEXT NOT NULL,
     last_telemetry      TEXT,
@@ -88,8 +88,8 @@ CREATE TABLE IF NOT EXISTS product_allergens (
 -- 訂單
 CREATE TABLE IF NOT EXISTS orders (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id             INTEGER NOT NULL REFERENCES users(id),
-    order_type          TEXT NOT NULL CHECK(order_type IN ('map_purchase', 'machine_gacha')),
+    user_id             INTEGER REFERENCES users(id),
+    order_type          TEXT NOT NULL CHECK(order_type IN ('map_purchase', 'machine_gacha', 'machine_purchase')),
 
     -- 路徑一（地圖導購）
     store_id            INTEGER,

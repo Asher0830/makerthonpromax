@@ -62,19 +62,20 @@ export function awardPoints(userId, points) {
 export function processTimeouts() {
     const now = new Date().toISOString();
 
-    // 找出所有超時的 WAITING 訂單
+    // 找出所有超時的 WAITING_FOR_TRIGGER 或 PENDING 訂單
     const { results: timedOut } = query(`
-        SELECT id, machine_id, compartment_id, amount, user_id
+        SELECT id, machine_id, compartment_id, amount, user_id, status
         FROM orders
-        WHERE status = 'WAITING_FOR_TRIGGER'
+        WHERE (status = 'WAITING_FOR_TRIGGER' OR status = 'PENDING')
           AND timeout_at < ?
     `, [now]);
 
     for (const order of timedOut) {
-        // 更新訂單狀態
+        // 更新訂單狀態：待付款超時設為 CANCELLED，待轉動超時設為 TIMEOUT_REFUNDED
+        const newStatus = order.status === 'PENDING' ? 'CANCELLED' : 'TIMEOUT_REFUNDED';
         query(
-            `UPDATE orders SET status = 'TIMEOUT_REFUNDED', updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
-            [order.id]
+            `UPDATE orders SET status = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
+            [newStatus, order.id]
         );
 
         // 重設機台狀態
@@ -88,11 +89,12 @@ export function processTimeouts() {
             releaseCompartment(order.compartment_id);
         }
 
-        console.log(`⏰ 訂單 #${order.id} 超時退款（機台 ${order.machine_id}）`);
+        const logMsg = order.status === 'PENDING' ? '未付款取消' : '超時退款';
+        console.log(`[TIMEOUT] 訂單 #${order.id} ${logMsg}（機台 ${order.machine_id}）`);
     }
 
     if (timedOut.length > 0) {
-        console.log(`⏰ 共處理 ${timedOut.length} 筆超時退款`);
+        console.log(`[TIMEOUT] 共處理 ${timedOut.length} 筆超時/未付款釋放`);
     }
 
     return timedOut.length;

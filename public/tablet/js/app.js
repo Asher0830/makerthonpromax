@@ -21,6 +21,7 @@ class TabletApp {
     };
 
     this.excludedAllergens = new Set();
+    this.selectedCategory = 'bento'; // default to 'bento', or 'bread', 'vegetable', 'other'
     this.currentOrder = null;   // { orderId, amount, expiresAt }
     this.currentResult = null;  // { compartment, productName, category }
     this.pairToken = null;
@@ -33,19 +34,19 @@ class TabletApp {
 
     /* ── Allergen list ── */
     this.allergens = [
-      { key: 'pork',    emoji: '🐷', label: '豬肉' },
-      { key: 'beef',    emoji: '🐄', label: '牛肉' },
-      { key: 'chicken', emoji: '🐔', label: '雞肉' },
-      { key: 'duck',    emoji: '🦆', label: '鴨肉' },
-      { key: 'lamb',    emoji: '🐑', label: '羊肉' },
-      { key: 'seafood', emoji: '🦐', label: '海鮮' },
-      { key: 'egg',     emoji: '🥚', label: '蛋' },
-      { key: 'milk',    emoji: '🥛', label: '乳製品' },
-      { key: 'peanut',  emoji: '🥜', label: '花生' },
-      { key: 'treenut', emoji: '🌰', label: '堅果' },
-      { key: 'wheat',   emoji: '🌾', label: '小麥' },
-      { key: 'soy',     emoji: '🫘', label: '大豆' },
-      { key: 'sesame',  emoji: '⚪', label: '芝麻' },
+      { key: 'pork',    label: '豬肉' },
+      { key: 'beef',    label: '牛肉' },
+      { key: 'chicken', label: '雞肉' },
+      { key: 'duck',    label: '鴨肉' },
+      { key: 'lamb',    label: '羊肉' },
+      { key: 'seafood', label: '海鮮' },
+      { key: 'egg',     label: '蛋' },
+      { key: 'milk',    label: '乳製品' },
+      { key: 'peanut',  label: '花生' },
+      { key: 'treenut', label: '堅果' },
+      { key: 'wheat',   label: '小麥' },
+      { key: 'soy',     label: '大豆' },
+      { key: 'sesame',  label: '芝麻' },
     ];
 
     /* ── Polling ── */
@@ -118,7 +119,7 @@ class TabletApp {
           <span class="status-bar__machine-name">${this.machineStatus.machineName}</span>
         </div>
         <div class="status-bar__right">
-          <span class="status-bar__temp">🌡️ <span>${temp}</span></span>
+          <span class="status-bar__temp">溫控 <span>${temp}</span></span>
           <span class="status-bar__time">${time}</span>
         </div>
       </div>`;
@@ -153,6 +154,7 @@ class TabletApp {
           <span class="compartment-slot__number">${c.number}</span>
           <span class="compartment-slot__status">${statusLabel}</span>
           ${c.productName ? `<span class="compartment-slot__product">${c.productName}</span>` : ''}
+          ${c.status === 'stocked' && c.price ? `<span class="compartment-slot__price" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); margin-top: 2px;">$${c.price}</span>` : ''}
         </div>`;
     }).join('');
 
@@ -168,7 +170,7 @@ class TabletApp {
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
-        <div class="welcome-logo">🎰</div>
+        <div class="welcome-logo">FoodD</div>
         <h1 class="title title--gradient">惜食扭蛋機</h1>
         <p class="welcome-tagline">用驚喜拯救美味 ── 每一轉都是善舉</p>
 
@@ -186,23 +188,39 @@ class TabletApp {
         </div>
 
         <button class="btn btn--primary btn--large" onclick="app.onStartGacha()">
-          🎲 開始扭蛋
+          開始扭蛋
         </button>
 
         <button class="pair-link" onclick="app.onEnterPairMode()">
-          🔗 店家配對
+          店家配對
         </button>
       </div>`;
   }
 
   _renderAllergenSelect() {
+    const categories = [
+      { key: 'bento', label: '精選便當' },
+      { key: 'bread', label: '新鮮麵包' },
+      { key: 'vegetable', label: '有機蔬菜' },
+    ];
+
+    const categoryButtons = categories.map((cat) => {
+      const active = this.selectedCategory === cat.key;
+      return `
+        <button class="category-toggle-btn ${active ? 'category-toggle-btn--active' : ''}"
+                onclick="app.onSelectCategory(${cat.key ? `'${cat.key}'` : 'null'})">
+          <span>${cat.label}</span>
+        </button>
+      `;
+    }).join('');
+
     const pills = this.allergens.map((a) => {
       const active = this.excludedAllergens.has(a.key);
       return `
         <button class="allergen-pill ${active ? 'allergen-pill--active' : ''}"
                 onclick="app.onToggleAllergen('${a.key}')">
           <span class="allergen-pill__check">${active ? '✕' : ''}</span>
-          <span>${a.emoji} ${a.label}</span>
+          <span>${a.label}</span>
         </button>`;
     }).join('');
 
@@ -212,8 +230,14 @@ class TabletApp {
     return `
       ${this._statusBar()}
       <div class="screen screen--top flex-col gap-16">
-        <h2 class="allergen-header">🚫 排除過敏原</h2>
-        <p class="allergen-subtitle">點選要排除的食材，扭蛋池將即時更新</p>
+        <h2 class="allergen-header" style="font-size: var(--fs-subheader); font-weight: 700;">選擇扭蛋類別與排除過敏原</h2>
+        
+        <!-- Category Toggle Row -->
+        <div class="category-toggle-row">
+          ${categoryButtons}
+        </div>
+
+        <p class="allergen-subtitle" style="margin-top: 4px;">點選要排除的過敏原，扭蛋池將即時更新</p>
 
         <div class="allergen-scroll-area">
           <div class="allergen-grid">
@@ -223,17 +247,17 @@ class TabletApp {
           <div class="pool-info mt-16">
             <div class="pool-info__count">${poolInfo.count} 項可抽</div>
             <div class="pool-info__price">平均 $${poolInfo.avgPrice}</div>
-            ${isEmpty ? '<div class="pool-warning">⚠️ 沒有符合條件的品項，請減少排除項目</div>' : ''}
+            ${isEmpty ? '<div class="pool-warning">沒有符合條件的品項，請減少篩選項目</div>' : ''}
           </div>
         </div>
 
-        <div style="display:flex; gap:12px; width:100%; max-width:420px;">
+        <div style="display:flex; gap:12px; width:100%; max-width:420px; margin-top: 8px;">
           <button class="btn btn--secondary" style="flex:1" onclick="app.setState('IDLE')">
-            ← 返回
+            返回
           </button>
           <button class="btn btn--primary" style="flex:2" ${isEmpty ? 'disabled' : ''}
                   onclick="app.onConfirmAllergens()">
-            ✅ 確認
+            確認
           </button>
         </div>
       </div>`;
@@ -244,7 +268,7 @@ class TabletApp {
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
-        <h2 class="title title--gradient">📱 掃碼付款</h2>
+        <h2 class="title title--gradient">掃碼付款</h2>
         <p class="body-text">請用手機掃描 QR Code 完成付款</p>
 
         <div class="qr-container" id="qr-target"></div>
@@ -274,7 +298,7 @@ class TabletApp {
         </h2>
 
         <div class="knob-container">
-          <div class="knob">🎰</div>
+          <div class="knob" style="font-family:'Outfit'; font-size: 1.5rem; font-weight:700; color:var(--accent-gold);">START</div>
         </div>
 
         <p class="body-text" style="animation: pulse 2s ease-in-out infinite;">
@@ -289,7 +313,7 @@ class TabletApp {
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
         <h2 class="title title--gradient" style="animation: pulse 0.6s ease-in-out infinite;">
-          🎰 扭蛋中…
+          抽獎中…
         </h2>
         <div class="gacha-stage" id="gacha-stage">
           <div class="gacha-reel" id="gacha-reel">
@@ -300,7 +324,7 @@ class TabletApp {
   }
 
   _gachaCells() {
-    const emojis = ['🍱', '🍛', '🥪', '🍕', '🥗', '🍜'];
+    const markers = ['✦', '✧', '✦', '✧', '✦', '✧'];
     const slots = this.machineStatus.compartments.length
       ? this.machineStatus.compartments
       : Array.from({ length: 6 }, (_, i) => ({
@@ -309,7 +333,7 @@ class TabletApp {
 
     return slots.map((c, i) => `
       <div class="gacha-cell" id="gacha-cell-${c.number}" data-num="${c.number}">
-        <span class="gacha-cell__emoji">${emojis[i % emojis.length]}</span>
+        <span class="gacha-cell__emoji" style="color:var(--accent-gold); font-size: 2rem;">${markers[i % markers.length]}</span>
         <span class="gacha-cell__name">${c.productName || `#${c.number}`}</span>
       </div>
     `).join('');
@@ -320,7 +344,7 @@ class TabletApp {
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
-        <h2 class="title title--gold">🎊 恭喜中獎！</h2>
+        <h2 class="title title--gold">抽取成功！</h2>
 
         <div class="result-card">
           <div class="result-card__label">中獎格號</div>
@@ -328,7 +352,7 @@ class TabletApp {
           <div class="result-card__product">${r.productName || '神秘美食'}</div>
           ${r.category ? `<span class="result-card__category">${r.category}</span>` : ''}
           <div class="result-card__message">
-            🚪 第 ${r.compartment || '?'} 號門已開啟，請取餐！
+            [領取] 第 ${r.compartment || '?'} 號門已開啟，請取餐！
           </div>
         </div>
 
@@ -343,7 +367,7 @@ class TabletApp {
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
-        <h2 class="title title--gradient">🔗 店家配對</h2>
+        <h2 class="title title--gradient">店家配對</h2>
         <p class="body-text">請用 FoodD 店家 App 掃描下方 QR Code<br>完成機台配對</p>
 
         <div class="qr-container" id="pair-qr-target"></div>
@@ -351,7 +375,7 @@ class TabletApp {
         <div class="pair-timer" id="pair-timer">10:00</div>
 
         <button class="btn btn--secondary" onclick="app.setState('IDLE')">
-          ← 返回
+          返回
         </button>
       </div>`;
   }
@@ -360,10 +384,10 @@ class TabletApp {
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
-        <div class="error-emoji">😵</div>
+        <div class="error-title" style="font-size: var(--fs-header); font-weight: 800; color: var(--accent-red);">系統異常</div>
         <div class="error-message">${this.errorMessage || '發生未知錯誤'}</div>
         <button class="btn btn--primary" onclick="app.setState('IDLE')">
-          🏠 返回首頁
+          返回首頁
         </button>
       </div>`;
   }
@@ -398,6 +422,7 @@ class TabletApp {
 
   onStartGacha() {
     this.excludedAllergens.clear();
+    this.selectedCategory = 'bento';
     this.setState('ALLERGEN_SELECT');
   }
 
@@ -410,11 +435,17 @@ class TabletApp {
     this.render();
   }
 
+  onSelectCategory(catKey) {
+    this.selectedCategory = catKey;
+    this.render();
+  }
+
   async onConfirmAllergens() {
     try {
       const result = await window.tabletAPI.startGacha(
         this.machineId,
-        Array.from(this.excludedAllergens)
+        Array.from(this.excludedAllergens),
+        this.selectedCategory
       );
       this.setState('WAITING_PAYMENT', {
         currentOrder: {
@@ -584,7 +615,7 @@ class TabletApp {
     const cells = document.querySelectorAll('.gacha-cell');
     if (!cells.length) return;
 
-    const emojis = ['🍱', '🍛', '🥪', '🍕', '🥗', '🍜', '🍙', '🥟', '🍣', '🌮'];
+    const markers = ['✦', '✧', '★', '☆', '✦', '✧', '★', '☆'];
 
     // Phase 1: rapid shuffle (2.5 seconds)
     let shuffleCount = 0;
@@ -592,7 +623,7 @@ class TabletApp {
       cells.forEach((cell) => {
         const emojiEl = cell.querySelector('.gacha-cell__emoji');
         if (emojiEl) {
-          emojiEl.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+          emojiEl.textContent = markers[Math.floor(Math.random() * markers.length)];
         }
         // Random highlight
         cell.classList.toggle('gacha-cell--highlight', Math.random() > 0.7);
@@ -711,10 +742,16 @@ class TabletApp {
     if (!comps.length) {
       return { count: this.machineStatus.totalStocked || 0, avgPrice: this.machineStatus.averagePrice || 0 };
     }
-    const filtered = comps.filter((c) => {
+    let filtered = comps.filter((c) => {
       const allergens = c.allergens || [];
       return !allergens.some((a) => this.excludedAllergens.has(a));
     });
+    
+    // 類別過濾（麵包與便當獨立抽獎）
+    if (this.selectedCategory) {
+      filtered = filtered.filter((c) => c.category === this.selectedCategory);
+    }
+    
     const avgPrice = filtered.length
       ? Math.round(filtered.reduce((sum, c) => sum + (c.price || 0), 0) / filtered.length)
       : 0;

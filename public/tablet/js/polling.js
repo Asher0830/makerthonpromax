@@ -77,6 +77,7 @@ class PollingService {
   _reschedule() {
     clearTimeout(this._timerId);
     const interval = this.intervals[this._currentState];
+    console.log(`[PollingService] reschedule state: ${this._currentState}, interval: ${interval}, running: ${this._running}`);
     if (interval == null || !this._running) return;
     this._timerId = setTimeout(() => this._poll(), interval);
   }

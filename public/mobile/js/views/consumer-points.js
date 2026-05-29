@@ -60,13 +60,13 @@ async function renderConsumerPointsPage() {
 
     <div class="page-content">
       <div class="points-display">
-        <div class="points-icon">💎</div>
+        <div class="points-icon">PTS</div>
         <div class="points-value">${pointsValue}</div>
         <div class="points-label">我的惜食點數</div>
       </div>
 
       <div class="card pet-banner">
-        <div class="pet-icon">🐾</div>
+        <div class="pet-icon">PETS</div>
         <div class="pet-text">
           <div class="pet-title">寵物系統即將推出！</div>
           <div class="pet-subtitle">集點兌換可愛的虛擬寵物</div>

@@ -4,11 +4,11 @@
 
 -- 測試消費者（密碼: test1234，bcrypt hash）
 INSERT OR IGNORE INTO users (email, password, role, name, points) VALUES
-('consumer@test.com', '$2a$10$8KzQ5x5K5K5K5K5K5K5K5OK5K5K5K5K5K5K5K5K5K5K5K5K5K5K', 'consumer', '測試消費者', 50);
+('consumer@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'consumer', '測試消費者', 50);
 
 -- 測試店家帳號
 INSERT OR IGNORE INTO users (email, password, role, name, points) VALUES
-('store@test.com', '$2a$10$8KzQ5x5K5K5K5K5K5K5K5OK5K5K5K5K5K5K5K5K5K5K5K5K5K5K', 'store_owner', '阿美便當老闆', 0);
+('store@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '阿美便當老闆', 0);
 
 -- 測試店家
 INSERT OR IGNORE INTO stores (user_id, name, description, address, latitude, longitude, phone) VALUES

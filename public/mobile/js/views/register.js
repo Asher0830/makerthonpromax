@@ -57,11 +57,9 @@ async function renderRegisterPage() {
           <label class="form-label">選擇身分</label>
           <div class="role-toggle" id="role-toggle">
             <div class="role-card selected" data-role="consumer" id="role-consumer" onclick="selectRole('consumer')">
-              <span class="role-card-emoji">🛒</span>
               <span class="role-card-label">消費者</span>
             </div>
             <div class="role-card" data-role="store_owner" id="role-store-owner" onclick="selectRole('store_owner')">
-              <span class="role-card-emoji">🏪</span>
               <span class="role-card-label">店家</span>
             </div>
           </div>

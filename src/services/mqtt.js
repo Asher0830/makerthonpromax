@@ -17,8 +17,8 @@ const EMQX_API_SECRET = process.env.EMQX_API_SECRET || '';
  */
 export async function publishMQTT(topic, payload) {
     if (MQTT_MODE === 'mock') {
-        console.log('📡 [MQTT Mock] Topic:', topic);
-        console.log('📡 [MQTT Mock] Payload:', JSON.stringify(payload, null, 2));
+        console.log('[MQTT Mock] Topic:', topic);
+        console.log('[MQTT Mock] Payload:', JSON.stringify(payload, null, 2));
         return true;
     }
 
@@ -39,14 +39,14 @@ export async function publishMQTT(topic, payload) {
         });
 
         if (!response.ok) {
-            console.error('❌ EMQX API 錯誤:', response.status, await response.text());
+            console.error('[MQTT ERR] EMQX API 錯誤:', response.status, await response.text());
             return false;
         }
 
-        console.log('✅ MQTT 訊息已發布:', topic);
+        console.log('[MQTT OK] MQTT 訊息已發布:', topic);
         return true;
     } catch (err) {
-        console.error('❌ EMQX 連線失敗:', err.message);
+        console.error('[MQTT ERR] EMQX 連線失敗:', err.message);
         return false;
     }
 }

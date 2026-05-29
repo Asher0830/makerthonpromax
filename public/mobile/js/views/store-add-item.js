@@ -40,11 +40,9 @@ function renderStoreAddItemPage() {
                     <label class="form-label">銷售來源</label>
                     <div class="source-toggle">
                         <div class="source-card selected" id="source-map" onclick="selectSource('map')">
-                            <span>🗺️</span>
                             <span>放到地圖平台</span>
                         </div>
                         <div class="source-card" id="source-machine" onclick="selectSource('machine')">
-                            <span>🏪</span>
                             <span>放入機台</span>
                         </div>
                     </div>

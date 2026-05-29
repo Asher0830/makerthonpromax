@@ -36,6 +36,19 @@ machines.get('/:machineId/status', async (c) => {
         [machineId]
     );
 
+    // 附加每個艙位商品的過敏原資訊，以便前端同步過濾與顯示
+    for (const comp of compartments) {
+        if (comp.product_id) {
+            const { results: allergenResults } = query(
+                'SELECT allergen FROM product_allergens WHERE product_id = ?',
+                [comp.product_id]
+            );
+            comp.allergens = allergenResults.map(r => r.allergen);
+        } else {
+            comp.allergens = [];
+        }
+    }
+
     // 商品池摘要
     const stocked = compartments.filter(c => c.status === 'STOCKED');
     const pool_summary = {
@@ -69,11 +82,27 @@ machines.get('/:machineId/status', async (c) => {
 // ============================================
 // 2. POST /:machineId/gacha/start — 開始扭蛋流程
 // ============================================
-machines.post('/:machineId/gacha/start', requireAuth(), async (c) => {
+machines.post('/:machineId/gacha/start', async (c) => {
     const { machineId } = c.req.param();
-    const user = c.get('user');
+    
+    // 嘗試解析可選的 JWT token
+    let userId = null;
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.slice(7);
+            const { verifyToken } = await import('../utils/jwt.js');
+            const payload = verifyToken(token);
+            if (payload) {
+                userId = payload.id;
+            }
+        } catch (err) {
+            // ignore
+        }
+    }
+
     const body = await c.req.json();
-    const { excluded_allergens = [] } = body;
+    const { excluded_allergens = [], category = null } = body;
 
     // 確認機台存在
     const machine = queryFirst('SELECT * FROM machines WHERE id = ?', [machineId]);
@@ -86,19 +115,20 @@ machines.post('/:machineId/gacha/start', requireAuth(), async (c) => {
         return error(c, 'MACHINE_BUSY', '機台忙碌中，請稍後再試', 409);
     }
 
-    // 取得篩選後的商品池
-    const { pool, avgPrice } = getFilteredPool(machineId, excluded_allergens);
+    // 取得篩選後的商品池（加入商品類別過濾）
+    const { pool, avgPrice } = getFilteredPool(machineId, excluded_allergens, category);
 
     if (pool.length === 0) {
-        return error(c, 'POOL_EMPTY', '目前無可抽獎商品（可能已被過敏原篩選排除）', 400);
+        return error(c, 'POOL_EMPTY', '目前無可抽獎商品（可能已被過敏原或類別篩選排除）', 400);
     }
 
     // 建立訂單與鎖定機台
     const orderId = transaction(() => {
+        const timeoutAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
         const result = query(
-            `INSERT INTO orders (user_id, order_type, machine_id, excluded_allergens, pool_size, pool_avg_price, amount, status)
-             VALUES (?, 'machine_gacha', ?, ?, ?, ?, ?, 'PENDING')`,
-            [user.id, machineId, JSON.stringify(excluded_allergens), pool.length, avgPrice, avgPrice]
+            `INSERT INTO orders (user_id, order_type, machine_id, excluded_allergens, pool_size, pool_avg_price, amount, status, timeout_at)
+             VALUES (?, 'machine_gacha', ?, ?, ?, ?, ?, 'PENDING', ?)`,
+            [userId, machineId, JSON.stringify({ allergens: excluded_allergens, category }), pool.length, avgPrice, avgPrice, timeoutAt]
         );
 
         const oId = Number(result.meta.last_row_id);
@@ -122,9 +152,25 @@ machines.post('/:machineId/gacha/start', requireAuth(), async (c) => {
 // ============================================
 // 2.2. POST /:machineId/purchase/start — 直接購買特定艙位商品
 // ============================================
-machines.post('/:machineId/purchase/start', requireAuth(), async (c) => {
+machines.post('/:machineId/purchase/start', async (c) => {
     const { machineId } = c.req.param();
-    const user = c.get('user');
+    
+    // 嘗試解析可選的 JWT token，以在已登入時綁定使用者帳號（免登入購買）
+    let userId = null;
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.slice(7);
+            const { verifyToken } = await import('../utils/jwt.js');
+            const payload = verifyToken(token);
+            if (payload) {
+                userId = payload.id;
+            }
+        } catch (err) {
+            // 忽略 Token 解析錯誤以維持訪客購買流程
+        }
+    }
+
     const body = await c.req.json();
     const { compartment_index } = body; // 艙位編號 1~6
 
@@ -169,12 +215,13 @@ machines.post('/:machineId/purchase/start', requireAuth(), async (c) => {
         );
 
         // 建立 PENDING 訂單
+        const timeoutAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
         const orderResult = query(
-            `INSERT INTO orders (user_id, order_type, machine_id, store_id, product_id, compartment_id, amount, status)
+            `INSERT INTO orders (user_id, order_type, machine_id, store_id, product_id, compartment_id, amount, status, timeout_at)
              VALUES (?, 'machine_purchase', ?, 
                      (SELECT store_id FROM products WHERE id = ?), 
-                     ?, ?, ?, 'PENDING')`,
-            [user.id, machineId, compartment.product_id, compartment.product_id, compartment.compartment_id, compartment.selling_price]
+                     ?, ?, ?, 'PENDING', ?)`,
+            [userId, machineId, compartment.product_id, compartment.product_id, compartment.compartment_id, compartment.selling_price, timeoutAt]
         );
 
         // 更新機台狀態為 WAITING_FOR_PAYMENT 且記錄 active_order_id (避免其他人同時在平板操作)
@@ -196,9 +243,25 @@ machines.post('/:machineId/purchase/start', requireAuth(), async (c) => {
 // ============================================
 // 3. POST /:machineId/gacha/pay — 確認付款（Mock）
 // ============================================
-machines.post('/:machineId/gacha/pay', requireAuth(), async (c) => {
+machines.post('/:machineId/gacha/pay', async (c) => {
     const { machineId } = c.req.param();
-    const user = c.get('user');
+    
+    // 嘗試解析可選的 JWT token
+    let userId = null;
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.slice(7);
+            const { verifyToken } = await import('../utils/jwt.js');
+            const payload = verifyToken(token);
+            if (payload) {
+                userId = payload.id;
+            }
+        } catch (err) {
+            // 忽略 Token 解析錯誤
+        }
+    }
+
     const body = await c.req.json();
     const { order_id } = body;
 
@@ -206,10 +269,10 @@ machines.post('/:machineId/gacha/pay', requireAuth(), async (c) => {
         return error(c, 'MISSING_FIELDS', '請提供 order_id');
     }
 
-    // 驗證訂單屬於該使用者且狀態為 PENDING
+    // 驗證訂單存在、屬於該機台且狀態為 PENDING
     const order = queryFirst(
-        'SELECT * FROM orders WHERE id = ? AND user_id = ? AND status = ?',
-        [order_id, user.id, 'PENDING']
+        'SELECT * FROM orders WHERE id = ? AND machine_id = ? AND status = ?',
+        [order_id, machineId, 'PENDING']
     );
 
     if (!order) {
@@ -220,6 +283,14 @@ machines.post('/:machineId/gacha/pay', requireAuth(), async (c) => {
     const timeoutAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     transaction(() => {
+        // 如果付款者為登入會員，且原訂單無會員記錄（訪客直購），則將點數歸屬給付款會員
+        if (userId && !order.user_id) {
+            query(
+                `UPDATE orders SET user_id = ? WHERE id = ?`,
+                [userId, order_id]
+            );
+        }
+
         // 更新訂單狀態
         query(
             `UPDATE orders SET status = 'WAITING_FOR_TRIGGER', paid_at = datetime('now'),
@@ -245,9 +316,25 @@ machines.post('/:machineId/gacha/pay', requireAuth(), async (c) => {
 // ============================================
 // 3.5. POST /:machineId/gacha/cancel — 取消進行中的訂單（釋放機台與可能預留的艙位）
 // ============================================
-machines.post('/:machineId/gacha/cancel', requireAuth(), async (c) => {
+machines.post('/:machineId/gacha/cancel', async (c) => {
     const { machineId } = c.req.param();
-    const user = c.get('user');
+    
+    // 嘗試解析可選的 JWT token
+    let userId = null;
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.slice(7);
+            const { verifyToken } = await import('../utils/jwt.js');
+            const payload = verifyToken(token);
+            if (payload) {
+                userId = payload.id;
+            }
+        } catch (err) {
+            // 忽略 Token 解析錯誤
+        }
+    }
+
     const body = await c.req.json();
     const { order_id } = body;
 
@@ -255,9 +342,10 @@ machines.post('/:machineId/gacha/cancel', requireAuth(), async (c) => {
         return error(c, 'MISSING_FIELDS', '請提供 order_id');
     }
 
+    // 驗證訂單存在、屬於該機台且狀態為 PENDING
     const order = queryFirst(
-        'SELECT * FROM orders WHERE id = ? AND user_id = ? AND status = ?',
-        [order_id, user.id, 'PENDING']
+        'SELECT * FROM orders WHERE id = ? AND machine_id = ? AND status = ?',
+        [order_id, machineId, 'PENDING']
     );
 
     if (!order) {
@@ -320,6 +408,8 @@ machines.post('/trigger', async (c) => {
         return error(c, 'NO_WAITING_ORDER', '目前無等待觸發的訂單', 403);
     }
 
+    console.log('🤖 [TRIGGER] 找到待觸發訂單:', { id: order.id, status: order.status, user_id: order.user_id });
+
     let won = null;
     let points = 0;
 
@@ -339,8 +429,22 @@ machines.post('/trigger', async (c) => {
         points = calculatePoints(won.selling_price);
     } else {
         // 扭蛋抽獎：取得商品池並抽獎
-        const excludedAllergens = order.excluded_allergens ? JSON.parse(order.excluded_allergens) : [];
-        const { pool } = getFilteredPool(machine_id, excludedAllergens);
+        let allergens = [];
+        let category = null;
+        if (order.excluded_allergens) {
+            try {
+                const parsed = JSON.parse(order.excluded_allergens);
+                if (Array.isArray(parsed)) {
+                    allergens = parsed;
+                } else if (parsed && typeof parsed === 'object') {
+                    allergens = parsed.allergens || [];
+                    category = parsed.category || null;
+                }
+            } catch (err) {
+                // 忽略解析錯誤
+            }
+        }
+        const { pool } = getFilteredPool(machine_id, allergens, category);
 
         if (pool.length === 0) {
             return error(c, 'POOL_EMPTY', '商品池已空', 400);

@@ -23,6 +23,21 @@ class Router {
     }
 
     resolve() {
+        // --- 關閉相機鏡頭 ---
+        if (window.activeQRScanner) {
+            try {
+                const scannerToStop = window.activeQRScanner;
+                window.activeQRScanner = null; // 立即清空，避免重複觸發
+                scannerToStop.stop().then(() => {
+                    console.log('[鏡頭] 鏡頭已成功關閉 (切換路由)');
+                }).catch(err => {
+                    console.warn('[警告] 關閉鏡頭失敗:', err);
+                });
+            } catch (err) {
+                console.warn('[警告] 關閉鏡頭異常:', err);
+            }
+        }
+
         let hash = location.hash.slice(1) || '/';
 
         // Strip query string for matching but keep it accessible
@@ -101,38 +116,30 @@ function updateBottomNav(activeTab) {
     if (authManager.isConsumer()) {
         nav.innerHTML = `
             <div class="nav-item ${activeTab === 'map' ? 'active' : ''}" onclick="router.navigate('/consumer/map')">
-                <span class="nav-icon">🗺️</span>
                 <span class="nav-label">地圖</span>
             </div>
             <div class="nav-item ${activeTab === 'orders' ? 'active' : ''}" onclick="router.navigate('/consumer/orders')">
-                <span class="nav-icon">📋</span>
                 <span class="nav-label">訂單</span>
             </div>
             <div class="nav-item ${activeTab === 'points' ? 'active' : ''}" onclick="router.navigate('/consumer/points')">
-                <span class="nav-icon">💎</span>
                 <span class="nav-label">點數</span>
             </div>
             <div class="nav-item ${activeTab === 'profile' ? 'active' : ''}" onclick="authManager.logout()">
-                <span class="nav-icon">👤</span>
                 <span class="nav-label">登出</span>
             </div>
         `;
     } else if (authManager.isStoreOwner()) {
         nav.innerHTML = `
             <div class="nav-item ${activeTab === 'dashboard' ? 'active' : ''}" onclick="router.navigate('/store/dashboard')">
-                <span class="nav-icon">🏠</span>
                 <span class="nav-label">主頁</span>
             </div>
             <div class="nav-item ${activeTab === 'add' ? 'active' : ''}" onclick="router.navigate('/store/add-item')">
-                <span class="nav-icon">➕</span>
                 <span class="nav-label">上架</span>
             </div>
             <div class="nav-item ${activeTab === 'machine' ? 'active' : ''}" onclick="router.navigate('/store/pair')">
-                <span class="nav-icon">🏪</span>
                 <span class="nav-label">機台</span>
             </div>
             <div class="nav-item ${activeTab === 'orders' ? 'active' : ''}" onclick="router.navigate('/store/orders')">
-                <span class="nav-icon">📋</span>
                 <span class="nav-label">訂單</span>
             </div>
         `;
@@ -180,8 +187,8 @@ function getCategoryColor(category) {
 }
 
 function getCategoryEmoji(category) {
-    const emojis = { bento: '🍱', bread: '🍞', vegetable: '🥬', other: '🍽️' };
-    return emojis[category] || emojis.other;
+    const chars = { bento: '便', bread: '麵', vegetable: '蔬', other: '他' };
+    return chars[category] || chars.other;
 }
 
 function getCategoryName(category) {
@@ -217,6 +224,7 @@ router.add('/consumer/store/:id', renderConsumerStorePage);
 router.add('/consumer/pay/:orderId', renderConsumerPayPage);
 router.add('/consumer/orders', renderConsumerOrdersPage);
 router.add('/consumer/points', renderConsumerPointsPage);
+router.add('/consumer/scan', renderConsumerScanPage);
 router.add('/store/dashboard', renderStoreDashboardPage);
 router.add('/store/add-item', renderStoreAddItemPage);
 router.add('/store/pair', renderStorePairPage);

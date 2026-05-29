@@ -99,46 +99,6 @@ orders.get('/me', requireAuth(), async (c) => {
 });
 
 // ============================================
-// 2.5. GET /:id — 取得單筆訂單詳情
-// ============================================
-orders.get('/:id', requireAuth(), async (c) => {
-    const user = c.get('user');
-    const { id } = c.req.param();
-
-    const order = queryFirst(
-        `SELECT o.id, o.order_type, o.status, o.amount, o.pickup_code,
-                o.points_earned, o.paid_at, o.completed_at, o.created_at,
-                p.name as product_name, p.category,
-                s.id as store_id, s.name as store_name, o.user_id
-         FROM orders o
-         LEFT JOIN products p ON o.product_id = p.id
-         LEFT JOIN stores s ON o.store_id = s.id
-         WHERE o.id = ?`,
-        [parseInt(id)]
-    );
-
-    if (!order) {
-        return error(c, 'ORDER_NOT_FOUND', '找不到此訂單', 404);
-    }
-
-    // 檢查權限：訂單擁有者，或者是店面老闆
-    const isOwner = order.user_id === user.id;
-    let isStoreOwnerOfOrder = false;
-    if (user.role === 'store_owner') {
-        const ownStore = queryFirst('SELECT id FROM stores WHERE user_id = ?', [user.id]);
-        if (ownStore && ownStore.id === order.store_id) {
-            isStoreOwnerOfOrder = true;
-        }
-    }
-
-    if (!isOwner && !isStoreOwnerOfOrder) {
-        return error(c, 'UNAUTHORIZED', '無權查看此訂單', 403);
-    }
-
-    return success(c, order);
-});
-
-// ============================================
 // 2.8. GET /store — 店家的訂單列表
 // ============================================
 orders.get('/store', requireAuth(), requireRole('store_owner'), async (c) => {
@@ -164,6 +124,68 @@ orders.get('/store', requireAuth(), requireRole('store_owner'), async (c) => {
     );
 
     return success(c, { orders: results });
+});
+
+// ============================================
+// 2.5. GET /:id — 取得單筆訂單詳情
+// ============================================
+orders.get('/:id', async (c) => {
+    // 嘗試解析可選的 JWT token，若為訪客購買則無需登入驗證
+    let userId = null;
+    let userRole = null;
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.slice(7);
+            const { verifyToken } = await import('../utils/jwt.js');
+            const payload = verifyToken(token);
+            if (payload) {
+                userId = payload.id;
+                userRole = payload.role;
+            }
+        } catch (err) {
+            // 忽略 Token 解析錯誤以維持訪客查看流程
+        }
+    }
+
+    const { id } = c.req.param();
+
+    const order = queryFirst(
+        `SELECT o.id, o.order_type, o.status, o.amount, o.pickup_code,
+                o.points_earned, o.paid_at, o.completed_at, o.created_at,
+                p.name as product_name, p.category,
+                s.id as store_id, s.name as store_name, o.user_id
+         FROM orders o
+         LEFT JOIN products p ON o.product_id = p.id
+         LEFT JOIN stores s ON o.store_id = s.id
+         WHERE o.id = ?`,
+        [parseInt(id)]
+    );
+
+    if (!order) {
+        return error(c, 'ORDER_NOT_FOUND', '找不到此訂單', 404);
+    }
+
+    // 檢查權限：如果訂單有綁定使用者 (user_id IS NOT NULL)，則必須登入且為訂單擁有者，或者是店面老闆；如果是訪客訂單 (user_id IS NULL)，則允許直接查看
+    if (order.user_id !== null) {
+        if (!userId) {
+            return error(c, 'UNAUTHORIZED', '請先登入', 401);
+        }
+        const isOwner = order.user_id === userId;
+        let isStoreOwnerOfOrder = false;
+        if (userRole === 'store_owner') {
+            const ownStore = queryFirst('SELECT id FROM stores WHERE user_id = ?', [userId]);
+            if (ownStore && ownStore.id === order.store_id) {
+                isStoreOwnerOfOrder = true;
+            }
+        }
+
+        if (!isOwner && !isStoreOwnerOfOrder) {
+            return error(c, 'UNAUTHORIZED', '無權查看此訂單', 403);
+        }
+    }
+
+    return success(c, order);
 });
 
 // ============================================

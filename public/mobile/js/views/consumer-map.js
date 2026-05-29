@@ -10,7 +10,7 @@ async function renderConsumerMapPage() {
   const html = `
     <div id="map-container" style="position:relative; width:100%; height:100vh;">
       <div class="map-search-bar">
-        <span class="map-search-icon">🔍</span>
+        <span class="map-search-icon">⌕</span>
         <input
           type="text"
           class="map-search-input"
@@ -21,8 +21,13 @@ async function renderConsumerMapPage() {
 
       <div id="map" style="width:100%; height:100%;"></div>
 
+      <!-- Floating Scan QR Button -->
+      <button class="map-scan-btn" onclick="router.navigate('/consumer/scan')" style="position: absolute; bottom: 90px; right: 16px; z-index: 1000; border: none; border-radius: 20px; font-family: 'Outfit', sans-serif; font-size: 0.85rem; font-weight: 700; color: #fff; background: var(--primary-color); padding: 10px 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.12); cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s ease-in-out;">
+        <span>[SCAN]</span> 掃碼起用/付款
+      </button>
+
       <div class="map-float-card" id="map-float-card">
-        <span class="map-float-emoji">🍱</span>
+        <span class="map-float-label" style="font-weight:700; color:var(--primary-color); margin-right:6px;">[惜食]</span>
         <span class="map-float-text">附近有 <strong id="product-count">0</strong> 個惜食商品</span>
       </div>
     </div>
@@ -78,7 +83,7 @@ async function renderConsumerMapPage() {
           fillOpacity: 1,
           color: '#fff',
           weight: 3,
-        }).addTo(map).bindPopup('📍 你的位置');
+        }).addTo(map).bindPopup('目前位置');
       },
       () => {
         /* Geolocation denied — stay at default */
