@@ -422,22 +422,26 @@ class TabletApp {
      ═══════════════════════════════════════════════════ */
 
   _postRender() {
-    switch (this.state) {
-      case 'WAITING_PAYMENT':
-        this._generatePaymentQR();
-        this._startPaymentCountdown();
-        break;
-      case 'GACHA_ANIMATION':
-        this._runGachaAnimation();
-        break;
-      case 'RESULT':
-        this._startResultCountdown();
-        this._fireConfetti();
-        break;
-      case 'PAIR_MODE':
-        this._generatePairQR();
-        this._startPairCountdown();
-        break;
+    try {
+      switch (this.state) {
+        case 'WAITING_PAYMENT':
+          this._generatePaymentQR();
+          this._startPaymentCountdown();
+          break;
+        case 'GACHA_ANIMATION':
+          this._runGachaAnimation();
+          break;
+        case 'RESULT':
+          this._startResultCountdown();
+          this._fireConfetti();
+          break;
+        case 'PAIR_MODE':
+          this._generatePairQR();
+          this._startPairCountdown();
+          break;
+      }
+    } catch (err) {
+      console.error('Error during _postRender:', err);
     }
   }
 
@@ -558,24 +562,52 @@ class TabletApp {
     const target = document.getElementById('qr-target');
     if (!target || !this.currentOrder) return;
     const url = `http://localhost:3000/mobile/#/consumer/pay/${this.currentOrder.orderId}`;
-    QRCode.toCanvas(url, { width: 220, margin: 2, color: { dark: '#0a0a1a', light: '#ffffff' } })
-      .then((canvas) => {
-        target.innerHTML = '';
-        target.appendChild(canvas);
-      })
-      .catch((e) => console.error('QR error', e));
+    
+    try {
+      if (typeof QRCode !== 'undefined') {
+        QRCode.toCanvas(url, { width: 220, margin: 2, color: { dark: '#0a0a1a', light: '#ffffff' } })
+          .then((canvas) => {
+            target.innerHTML = '';
+            target.appendChild(canvas);
+          })
+          .catch((e) => {
+            console.error('QR canvas error, falling back to API image', e);
+            target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+          });
+      } else {
+        console.warn('QRCode library not loaded, using API image fallback');
+        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+      }
+    } catch (err) {
+      console.error('Failed to generate QR Code, using image fallback:', err);
+      target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+    }
   }
 
   _generatePairQR() {
     const target = document.getElementById('pair-qr-target');
     if (!target) return;
     const url = `http://localhost:3000/mobile/#/store/pair?token=${this.pairToken}`;
-    QRCode.toCanvas(url, { width: 220, margin: 2, color: { dark: '#0a0a1a', light: '#ffffff' } })
-      .then((canvas) => {
-        target.innerHTML = '';
-        target.appendChild(canvas);
-      })
-      .catch((e) => console.error('QR error', e));
+    
+    try {
+      if (typeof QRCode !== 'undefined') {
+        QRCode.toCanvas(url, { width: 220, margin: 2, color: { dark: '#0a0a1a', light: '#ffffff' } })
+          .then((canvas) => {
+            target.innerHTML = '';
+            target.appendChild(canvas);
+          })
+          .catch((e) => {
+            console.error('QR canvas error, falling back to API image', e);
+            target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+          });
+      } else {
+        console.warn('QRCode library not loaded, using API image fallback');
+        target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+      }
+    } catch (err) {
+      console.error('Failed to generate pair QR Code, using image fallback:', err);
+      target.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}" style="display:block; width:220px; height:220px; border-radius: 8px;" />`;
+    }
   }
 
   /* ═══════════════════════════════════════════════════
@@ -584,9 +616,16 @@ class TabletApp {
 
   _startPaymentCountdown() {
     if (!this.currentOrder) return;
-    const expiresAt = typeof this.currentOrder.expiresAt === 'number'
+    
+    let expiresAt = typeof this.currentOrder.expiresAt === 'number'
       ? this.currentOrder.expiresAt
       : new Date(this.currentOrder.expiresAt).getTime();
+      
+    // Foolproof safety: if expiresAt is NaN, default to 5 minutes from now
+    if (isNaN(expiresAt)) {
+      expiresAt = Date.now() + 5 * 60 * 1000;
+    }
+    
     const totalDuration = expiresAt - Date.now();
 
     const tick = () => {
