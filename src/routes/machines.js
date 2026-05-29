@@ -102,7 +102,13 @@ machines.post('/:machineId/gacha/start', async (c) => {
     }
 
     const body = await c.req.json();
-    const { excluded_allergens = [], category = null } = body;
+    let { excluded_allergens = [], category = null } = body;
+
+    // 安全防線：抽獎必須在符合的類別內抽取，絕對不能「所有商品大雜燴混合抽」！
+    // 若未提供類別或傳入空值，我們強制設定預設為 'bento' (精選便當)
+    if (!category) {
+        category = 'bento';
+    }
 
     // 確認機台存在
     const machine = queryFirst('SELECT * FROM machines WHERE id = ?', [machineId]);
