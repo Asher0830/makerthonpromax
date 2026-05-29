@@ -78,7 +78,7 @@ INSERT OR IGNORE INTO products (store_id, name, category, original_price, sellin
 (2, '香蒜巧巴達', 'bread', 50, 25, '濃厚蒜香與Q彈巧巴達麵包', 'machine', 'AVAILABLE', datetime('now', '+5 hours')),
 (1, '小農有機高麗菜', 'vegetable', 65, 35, '高山現採有機高麗菜，清甜可口', 'machine', 'AVAILABLE', datetime('now', '+2 hours')),
 (1, '新鮮溫室番茄包', 'vegetable', 70, 40, '溫室番茄整袋裝，多汁營養', 'machine', 'AVAILABLE', datetime('now', '+2 hours')),
-(1, '主廚經典沙拉盒', 'vegetable', 80, 45, '新鮮綜合生菜+堅果+特調油醋醬', 'machine', 'AVAILABLE', datetime('now', '+2 hours');
+(1, '主廚經典沙拉盒', 'vegetable', 80, 45, '新鮮綜合生菜+堅果+特調油醋醬', 'machine', 'AVAILABLE', datetime('now', '+2 hours'));
 
 -- 過敏原標籤
 INSERT OR IGNORE INTO product_allergens (product_id, allergen) VALUES
