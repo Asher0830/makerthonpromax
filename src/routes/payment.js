@@ -65,6 +65,22 @@ payment.post('/mock/pay', async (c) => {
         return error(c, 'INVALID_STATUS', '訂單狀態非待付款', 400);
     }
 
+    // 解析 JWT Token 綁定使用者，將訪客/機台訂單歸屬到付款的會員帳戶中
+    let userId = order.user_id;
+    const authHeader = c.req.header('Authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const token = authHeader.slice(7);
+            const { verifyToken } = await import('../utils/jwt.js');
+            const payload = verifyToken(token);
+            if (payload && payload.id) {
+                userId = payload.id;
+            }
+        } catch (err) {
+            // ignore
+        }
+    }
+
     const timeoutAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     if (order.order_type === 'map_purchase') {
@@ -76,15 +92,15 @@ payment.post('/mock/pay', async (c) => {
 
         transaction(() => {
             dbQuery(
-                `UPDATE orders SET status = 'PAID', pickup_code = ?, paid_at = datetime('now'), updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
-                [pickupCode, order_id]
+                `UPDATE orders SET status = 'PAID', pickup_code = ?, user_id = ?, paid_at = datetime('now'), updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
+                [pickupCode, userId, order_id]
             );
             dbQuery(
                 `UPDATE products SET status = 'RESERVED', updated_at = datetime('now') WHERE id = ?`,
                 [order.product_id]
             );
-            if (order.user_id) {
-                awardPoints(order.user_id, points);
+            if (userId) {
+                awardPoints(userId, points);
             }
         });
     } else if (order.order_type === 'machine_purchase') {
@@ -110,8 +126,8 @@ payment.post('/mock/pay', async (c) => {
 
         transaction(() => {
             dbQuery(
-                `UPDATE orders SET status = 'DISPENSING', points_earned = ?, paid_at = datetime('now'), updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
-                [points, order_id]
+                `UPDATE orders SET status = 'DISPENSING', points_earned = ?, user_id = ?, paid_at = datetime('now'), updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
+                [points, userId, order_id]
             );
             dbQuery(
                 `UPDATE machines SET status = 'DISPENSING', active_order_id = ? WHERE id = ?`,
@@ -119,8 +135,8 @@ payment.post('/mock/pay', async (c) => {
             );
             // [M6 FIX] 艙位已在 purchase/start 時 RESERVED，直接 dispense
             dispenseCompartment(comp.compartment_id);
-            if (order.user_id) {
-                awardPoints(order.user_id, points);
+            if (userId) {
+                awardPoints(userId, points);
             }
             dbQuery(
                 `UPDATE products SET status = 'SOLD', updated_at = datetime('now') WHERE id = ?`,
@@ -131,12 +147,12 @@ payment.post('/mock/pay', async (c) => {
         // 發送開門指令到 ESP32
         await sendOpenDoor(order.machine_id, comp.index_num, `order_${order_id}`);
     } else {
-        // 機台扭蛋訂單 (machine_gacha)：標記 WAITING_FOR_TRIGGER + 更新機台狀態
+        // 機台扭蛋訂單 (machine_gacha)：標記 WAITING_FOR_TRIGGER + 更新機台狀態並歸屬用戶
         const { query: dbQuery, transaction } = await import('../db/connection.js');
         transaction(() => {
             dbQuery(
-                `UPDATE orders SET status = 'WAITING_FOR_TRIGGER', paid_at = datetime('now'), timeout_at = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ? AND status = 'PENDING'`,
-                [timeoutAt, order_id]
+                `UPDATE orders SET status = 'WAITING_FOR_TRIGGER', user_id = ?, paid_at = datetime('now'), timeout_at = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ? AND status = 'PENDING'`,
+                [userId, timeoutAt, order_id]
             );
             dbQuery(
                 `UPDATE machines SET status = 'WAITING_FOR_TRIGGER', active_order_id = ? WHERE id = ?`,
