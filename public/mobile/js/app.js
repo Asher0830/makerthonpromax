@@ -7,6 +7,123 @@ function escapeHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
+// --- Bilingual Translation System (i18n) ---
+const i18n = {
+    currentLang: localStorage.getItem('app_lang') || 'zh',
+    
+    zh: {
+        // Shared & Nav
+        appTitle: "SFood 惜食救援",
+        logout: "登出",
+        login: "登入",
+        register: "註冊",
+        home: "主頁",
+        map: "地圖",
+        orders: "訂單",
+        points: "點數",
+        dashboard: "主頁",
+        add: "上架",
+        machine: "機台",
+        back: "←",
+        
+        // Home View
+        hello: "哈囉，",
+        slogan: "用驚喜與美味，拯救每一份即期惜食。",
+        liveStatus: "智慧惜食機",
+        running: "運行中",
+        waitingPayment: "待付款",
+        waitingKnob: "請轉動旋鈕！",
+        dispensing: "出餐中",
+        temp: "即時櫃溫 (ESP32)",
+        humidity: "即時濕度 (ESP32)",
+        onlineGood: "運行良好",
+        onlineStatus: "目前在線狀況：",
+        stockedCount: "已上架 {count} 個商品",
+        quickMenu: "快速選單",
+        mapSearch: "地圖搜尋",
+        findStore: "尋找附近惜食店家",
+        scanPay: "掃碼付款",
+        directTrigger: "直接啟用與出餐",
+        petSystem: "惜食寵物",
+        pointsLabel: "環保點數",
+        checkHistory: "查看您的消費歷程",
+        pointsSub: "累計買剩食的愛心點數",
+        sdgAction: "SDGs 永續惜食行動"
+    },
+    en: {
+        // Shared & Nav
+        appTitle: "SFood Rescue",
+        logout: "Logout",
+        login: "Login",
+        register: "Register",
+        home: "Home",
+        map: "Map",
+        orders: "Orders",
+        points: "Points",
+        dashboard: "Dashboard",
+        add: "Sell",
+        machine: "Machine",
+        back: "←",
+        
+        // Home View
+        hello: "Hello, ",
+        slogan: "Save every surplus meal with surprise & taste.",
+        liveStatus: "Smart Vending Machine",
+        running: "Active",
+        waitingPayment: "Unpaid",
+        waitingKnob: "Turn Knob!",
+        dispensing: "Dispensing",
+        temp: "Cabinet Temp (ESP32)",
+        humidity: "Cabinet Humidity (ESP32)",
+        onlineGood: "Healthy",
+        onlineStatus: "Connection status: ",
+        stockedCount: "{count} items stocked",
+        quickMenu: "Quick Actions",
+        mapSearch: "Map Search",
+        findStore: "Find surplus shops nearby",
+        scanPay: "Scan to Pay",
+        directTrigger: "Instantly unlock & dispense",
+        petSystem: "Eco Pet",
+        pointsLabel: "Eco Points",
+        checkHistory: "View your purchase history",
+        pointsSub: "Accumulate points by saving surplus",
+        sdgAction: "SDGs Sustainable Action"
+    }
+};
+
+window.i18n = i18n;
+
+window.t = function(key, replacements = {}) {
+    const lang = i18n.currentLang;
+    let text = i18n[lang][key] || i18n['zh'][key] || key;
+    for (const [k, v] of Object.entries(replacements)) {
+        text = text.replace(`{${k}}`, v);
+    }
+    return text;
+};
+
+window.toggleLanguage = function() {
+    i18n.currentLang = i18n.currentLang === 'zh' ? 'en' : 'zh';
+    localStorage.setItem('app_lang', i18n.currentLang);
+    router.resolve();
+};
+
+// --- Theme Management (Dark & Light Mode) ---
+window.toggleTheme = function() {
+    const isDark = document.body.classList.toggle('dark-theme');
+    document.documentElement.classList.toggle('dark-theme', isDark);
+    localStorage.setItem('app_theme', isDark ? 'dark' : 'light');
+};
+
+// Auto-initialize theme on boot
+(function() {
+    const savedTheme = localStorage.getItem('app_theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-theme');
+        document.documentElement.classList.add('dark-theme');
+    }
+})();
+
 // --- Hash Router ---
 class Router {
     constructor() {
@@ -144,34 +261,34 @@ function updateBottomNav(activeTab) {
     if (authManager.isConsumer()) {
         nav.innerHTML = `
             <div class="nav-item ${activeTab === 'home' ? 'active' : ''}" onclick="router.navigate('/consumer/home')">
-                <span class="nav-label">主頁</span>
+                <span class="nav-label">${window.t('home')}</span>
             </div>
             <div class="nav-item ${activeTab === 'map' ? 'active' : ''}" onclick="router.navigate('/consumer/map')">
-                <span class="nav-label">地圖</span>
+                <span class="nav-label">${window.t('map')}</span>
             </div>
             <div class="nav-item ${activeTab === 'orders' ? 'active' : ''}" onclick="router.navigate('/consumer/orders')">
-                <span class="nav-label">訂單</span>
+                <span class="nav-label">${window.t('orders')}</span>
             </div>
             <div class="nav-item ${activeTab === 'points' ? 'active' : ''}" onclick="router.navigate('/consumer/points')">
-                <span class="nav-label">點數</span>
+                <span class="nav-label">${window.t('points')}</span>
             </div>
             <div class="nav-item ${activeTab === 'profile' ? 'active' : ''}" onclick="authManager.logout()">
-                <span class="nav-label">登出</span>
+                <span class="nav-label">${window.t('logout')}</span>
             </div>
         `;
     } else if (authManager.isStoreOwner()) {
         nav.innerHTML = `
             <div class="nav-item ${activeTab === 'dashboard' ? 'active' : ''}" onclick="router.navigate('/store/dashboard')">
-                <span class="nav-label">主頁</span>
+                <span class="nav-label">${window.t('dashboard')}</span>
             </div>
             <div class="nav-item ${activeTab === 'add' ? 'active' : ''}" onclick="router.navigate('/store/add-item')">
-                <span class="nav-label">上架</span>
+                <span class="nav-label">${window.t('add')}</span>
             </div>
             <div class="nav-item ${activeTab === 'machine' ? 'active' : ''}" onclick="router.navigate('/store/pair')">
-                <span class="nav-label">機台</span>
+                <span class="nav-label">${window.t('machine')}</span>
             </div>
             <div class="nav-item ${activeTab === 'orders' ? 'active' : ''}" onclick="router.navigate('/store/orders')">
-                <span class="nav-label">訂單</span>
+                <span class="nav-label">${window.t('orders')}</span>
             </div>
         `;
     }

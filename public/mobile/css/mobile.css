@@ -30,6 +30,27 @@
     --header-gradient: linear-gradient(180deg, #FCFAF6 0%, #F7F5F0 100%); /* Clean Light Header */
 }
 
+/* ---------- Dark Theme Overrides ---------- */
+body.dark-theme {
+    --bg: #0D0E10;            /* Premium Lacquer Black/Gray */
+    --surface: #14161B;       /* Deep Lacquer Surface */
+    --border: rgba(255, 255, 255, 0.08); /* White hairline border */
+    --text: #F7F5F0;          /* Warm Ash Cream text */
+    --text-secondary: #9FA2A6; /* Cool Slate Light Muted */
+    --header-gradient: linear-gradient(180deg, #14161B 0%, #0D0E10 100%);
+    --accent-light: rgba(0, 128, 85, 0.15);
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.5);
+}
+
+html.dark-theme {
+    background: #050608;
+}
+
+/* Smooth transitions for high-end theme toggle feeling */
+body, .card, .page-header, #bottom-nav, .nav-item {
+    transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
 /* ---------- Reset & Base ---------- */
 *, *::before, *::after {
     box-sizing: border-box;
