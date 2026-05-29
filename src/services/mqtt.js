@@ -61,11 +61,33 @@ export function popCommand(machineId) {
         if (!cmd) return null;
 
         query(`DELETE FROM pending_commands WHERE id = ?`, [cmd.id]);
+
+        // 根據 request_id (如 order_123) 動態查詢訂單類型 (GACHA vs PURCHASE)
+        let cmdType = 'OTHER';
+        if (cmd.request_id && cmd.request_id.startsWith('order_')) {
+            const orderIdStr = cmd.request_id.replace('order_', '');
+            const orderId = parseInt(orderIdStr, 10);
+            if (!isNaN(orderId)) {
+                try {
+                    const order = queryFirst('SELECT order_type FROM orders WHERE id = ?', [orderId]);
+                    if (order) {
+                        if (order.order_type === 'machine_gacha') {
+                            cmdType = 'GACHA';
+                        } else {
+                            cmdType = 'PURCHASE';
+                        }
+                    }
+                } catch (e) {
+                    console.error('[指令佇列] 查詢訂單類型時發生錯誤:', e.message);
+                }
+            }
+        }
+        cmd.cmd_type = cmdType;
         return cmd;
     });
 
     if (command) {
-        console.log(`[指令佇列] 已彈出指令 → 機台: ${machineId}, 動作: ${command.action}, 艙位: ${command.door_index}`);
+        console.log(`[指令佇列] 已彈出指令 → 機台: ${machineId}, 動作: ${command.action}, 艙位: ${command.door_index}, 類型: ${command.cmd_type}`);
     }
     return command;
 }

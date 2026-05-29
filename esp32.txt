@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <DHT.h>
 #include <ESP32Servo.h>
+#include <Adafruit_NeoPixel.h>
 
 // ==================== 網路與 API 設定 ====================
 const char* ssid = "COM";            // [DEMO] Production: use NVS/EEPROM
@@ -32,9 +33,20 @@ const String telemetrySecret = "sec_01a2b3";          // [DEMO] Production: use 
 #define DOOR1_BTN_PIN 10
 #define DOOR2_BTN_PIN 11
 
+// WS2812 燈條設定
+#define LED1_PIN 12
+#define LED2_PIN 13
+#define NUM_LEDS 8
+
 const int NUM_DOORS = 2;                       
 int servoPins[NUM_DOORS] = {8, 9};             
 Servo cabinetLatches[NUM_DOORS];
+
+// WS2812 燈條實例
+Adafruit_NeoPixel strips[NUM_DOORS] = {
+  Adafruit_NeoPixel(NUM_LEDS, LED1_PIN, NEO_GRB + NEO_KHZ800),
+  Adafruit_NeoPixel(NUM_LEDS, LED2_PIN, NEO_GRB + NEO_KHZ800)
+};
 
 const int LATCH_LOCKED = 0;                    
 const int LATCH_UNLOCKED = 90;                 
@@ -51,6 +63,7 @@ volatile int activeDoorIndex = -1;
 unsigned long doorOpenedAt = 0;                  // [C3] Timestamp when door opened
 unsigned long lastReconnectAttempt = 0;          // [C2] WiFi reconnection tracking
 bool pendingComplete = false;                    // [H5] Retry flag for reportComplete
+String currentCommandType = "";                  // 儲存當前開門指令類型（GACHA 扭蛋 / PURCHASE 購買）
 
 unsigned long lastDHTReadTime = 0;
 unsigned long lastTelemetryTime = 0;
@@ -95,11 +108,14 @@ void IRAM_ATTR handleDoor2Close() {
 }
 
 // ==================== 封裝安全開門函式 ====================
-void openDoor(int physicalDoorIndex) {
+void openDoor(int physicalDoorIndex, String cmdType = "PURCHASE") {
   int arrayIndex = physicalDoorIndex - 1; 
   if (arrayIndex < 0 || arrayIndex >= NUM_DOORS) return;
 
-  Serial.printf("[機構動作] 驅動 %d 號實體艙門伺服馬達彈開\n", physicalDoorIndex);
+  Serial.printf("[機構動作] 驅動 %d 號實體艙門伺服馬達彈開, 類型: %s\n", physicalDoorIndex, cmdType.c_str());
+  
+  // 保存當前命令類型以利燈條動畫呈現
+  currentCommandType = cmdType;
   
   cabinetLatches[arrayIndex].attach(servoPins[arrayIndex]);
   cabinetLatches[arrayIndex].write(LATCH_UNLOCKED); 
@@ -137,14 +153,15 @@ void pollForCommands() {
       return;
     }
 
-    // 回傳格式: { "success": true, "data": { "action": "OPEN", "door_index": 1, "request_id": "order_123" } }
+    // 回傳格式: { "success": true, "data": { "action": "OPEN", "door_index": 1, "request_id": "order_123", "cmd_type": "GACHA" } }
     const char* action = doc["data"]["action"];
 
     if (action && String(action) == "OPEN") {
       int wonCompartment = doc["data"]["door_index"];
       const char* request_id = doc["data"]["request_id"];
+      const char* cmd_type = doc["data"]["cmd_type"];
 
-      Serial.printf("\n[HTTP 輪詢] 收到開門指令！艙位: %d (訂單: %s)\n", wonCompartment, request_id ? request_id : "N/A");
+      Serial.printf("\n[HTTP 輪詢] 收到開門指令！艙位: %d (訂單: %s, 類型: %s)\n", wonCompartment, request_id ? request_id : "N/A", cmd_type ? cmd_type : "PURCHASE");
       
       // 虛擬艙位(1~12) 映射到實體艙門(1~2) 邏輯
       int physicalDoor = 1; 
@@ -157,7 +174,7 @@ void pollForCommands() {
         physicalDoor = 1; 
       }
       
-      openDoor(physicalDoor);
+      openDoor(physicalDoor, cmd_type ? String(cmd_type) : "PURCHASE");
     }
     // action == "NONE" → 無指令，靜默繼續
   } else if (httpCode > 0) {
@@ -242,6 +259,12 @@ void setup() {
     cabinetLatches[i].write(LATCH_LOCKED);
     delay(150);
     cabinetLatches[i].detach(); 
+  }
+
+  // 初始化 WS2812 燈條
+  for (int i = 0; i < NUM_DOORS; i++) {
+    strips[i].begin();
+    strips[i].show(); // 全部預設先關閉
   }
   
   Serial.println("==================================================");
@@ -426,5 +449,101 @@ void loop() {
         currentState = STATE_IDLE;
       }
       break;
+  }
+
+  // 4. 更新燈條非阻塞動畫
+  updateLEDs();
+}
+
+// ==================== WS2812 燈條非阻塞動畫控制 ====================
+unsigned long lastLEDAnimTime = 0;
+int ledAnimFrame = 0;
+
+// 輔助函式：產生漸變彩虹色
+uint32_t Wheel(byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if (WheelPos < 85) {
+    return strips[0].Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if (WheelPos < 170) {
+    WheelPos -= 85;
+    return strips[0].Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  return strips[0].Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+void updateLEDs() {
+  unsigned long now = millis();
+  
+  if (currentState != STATE_DOOR_WAITING_CLOSE || activeDoorIndex < 0 || activeDoorIndex >= NUM_DOORS) {
+    // 當前非等待關門狀態，或無活耀艙門 → 關閉所有燈條
+    bool needUpdate = false;
+    for (int d = 0; d < NUM_DOORS; d++) {
+      for (int i = 0; i < NUM_LEDS; i++) {
+        if (strips[d].getPixelColor(i) != 0) {
+          strips[d].setPixelColor(i, strips[d].Color(0, 0, 0));
+          needUpdate = true;
+        }
+      }
+      if (needUpdate) {
+        strips[d].show();
+      }
+    }
+    return;
+  }
+  
+  // 根據指令類型播放動畫
+  if (currentCommandType == "GACHA") {
+    // 扭蛋特效：歡樂彩色跑馬燈 (60ms 更新，炫彩動態)
+    if (now - lastLEDAnimTime > 60) {
+      lastLEDAnimTime = now;
+      ledAnimFrame = (ledAnimFrame + 1) % 256;
+      
+      Adafruit_NeoPixel& strip = strips[activeDoorIndex];
+      for (int i = 0; i < NUM_LEDS; i++) {
+        byte wheelPos = (i * 256 / NUM_LEDS + ledAnimFrame) & 255;
+        // 點點跑馬燈效果：間隔亮燈
+        if ((i + ledAnimFrame / 8) % 3 == 0) {
+          strip.setPixelColor(i, Wheel(wheelPos));
+        } else {
+          strip.setPixelColor(i, strip.Color(5, 5, 5)); // 微弱白光背景
+        }
+      }
+      strip.show();
+      
+      // 確保另一條熄滅
+      int otherDoorIndex = (activeDoorIndex == 0) ? 1 : 0;
+      strips[otherDoorIndex].clear();
+      strips[otherDoorIndex].show();
+    }
+  } else {
+    // 直接購買特效：溫和翡翠綠彗星跑馬燈 (120ms 更新，平穩高雅)
+    if (now - lastLEDAnimTime > 120) {
+      lastLEDAnimTime = now;
+      ledAnimFrame = (ledAnimFrame + 1) % NUM_LEDS;
+      
+      Adafruit_NeoPixel& strip = strips[activeDoorIndex];
+      for (int i = 0; i < NUM_LEDS; i++) {
+        if (i == ledAnimFrame) {
+          // 主亮點點：明亮翡翠綠
+          strip.setPixelColor(i, strip.Color(0, 255, 100));
+        } else if (i == (ledAnimFrame + NUM_LEDS - 1) % NUM_LEDS) {
+          // 拖尾點 1
+          strip.setPixelColor(i, strip.Color(0, 128, 50));
+        } else if (i == (ledAnimFrame + NUM_LEDS - 2) % NUM_LEDS) {
+          // 拖尾點 2
+          strip.setPixelColor(i, strip.Color(0, 40, 15));
+        } else {
+          strip.setPixelColor(i, strip.Color(0, 0, 0));
+        }
+      }
+      strip.show();
+      
+      // 確保另一條熄滅
+      int otherDoorIndex = (activeDoorIndex == 0) ? 1 : 0;
+      strips[otherDoorIndex].clear();
+      strips[otherDoorIndex].show();
+    }
   }
 }
