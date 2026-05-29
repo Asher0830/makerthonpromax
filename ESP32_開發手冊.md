@@ -41,13 +41,12 @@
                     └─────────┘    └────────────┘
 ```
 
-**ESP32 的三大職責：**
+**ESP32 的兩大職責（展示演示版）：**
 
 | 職責 | 觸發方式 | 通訊協定 |
 |------|----------|----------|
 | ① 偵測旋鈕轉動 → 通知伺服器觸發抽獎 | 旋鈕中斷 | HTTPS POST → API |
 | ② 接收開門指令 → 驅動 SG90 伺服馬達 | MQTT 訂閱 | MQTT（from EMQX） |
-| ③ 監控溫濕度 → 控制冷藏/加熱繼電器 | 定時讀取 | MQTT 發布（遙測上報） |
 
 ### 1.2 你不需要處理的事
 
@@ -55,8 +54,9 @@
 - ❌ 付款驗證（由伺服器處理）
 - ❌ 使用者介面（平板端處理）
 - ❌ 會員 / 點數系統（伺服器處理）
+- ❌ 溫控與繼電器控制（本展示版已省略，無須硬體繼電器）
 
-**你只需要：接收物理訊號 → 發 HTTP → 接 MQTT → 控制馬達和繼電器。**
+**你只需要：接收物理訊號 → 發 HTTP → 接 MQTT → 控制馬達。**
 
 ---
 
@@ -67,12 +67,11 @@
 | 元件 | 型號 | 數量 | 用途 |
 |------|------|------|------|
 | 主控板 | ESP32 DevKit V1 (或 ESP32-S3) | 1 | 主控制器 |
-| 伺服馬達 | SG90 (9g 微型) | 6 | 每個艙位的門鎖 |
-| 溫濕度感測器 | DHT11 (或 DHT22) | 1 | 環境監控 |
-| 繼電器模組 | 5V 2路繼電器 | 1 | 冷藏 / 加熱控制 |
+| 伺服馬達 | SG90 (9g 微型) | 2 | 艙位 1 與 2 的門鎖 (展示僅需 2 個) |
 | 旋轉編碼器 | KY-040 | 1 | 扭蛋旋鈕 |
-| 電源供應 | 5V 3A 以上 | 1 | 供電馬達 + ESP32 |
-| PCA9685 (選配) | 16路 PWM 驅動板 | 1 | 如果 GPIO 不夠用 |
+| 電源供應 | 5V 2A 以上 | 1 | 供電馬達 + ESP32 |
+
+> 📌 **說明**：為簡化展示，本版本**不需要**繼電器模組與 PCA9685 擴展板，亦省去環境溫濕度感測器。
 
 ### 2.2 建議接線 (GPIO Mapping)
 
@@ -85,37 +84,20 @@ ESP32 GPIO 配置：
   DT   ──► GPIO 35 (INPUT)
   SW   ──► GPIO 32 (按鈕，選配)
 
-DHT11 溫濕度:
-  DATA ──► GPIO 4 (需 4.7kΩ 上拉電阻)
-
-繼電器模組:
-  冷藏 (IN1) ──► GPIO 25 (OUTPUT)
-  加熱 (IN2) ──► GPIO 26 (OUTPUT)
-
 SG90 伺服馬達 (PWM):
   門 1 ──► GPIO 13
   門 2 ──► GPIO 14
-  門 3 ──► GPIO 15
-  門 4 ──► GPIO 16
-  門 5 ──► GPIO 17
-  門 6 ──► GPIO 18
-
-※ 如使用 PCA9685 I2C PWM 擴展板：
-  SDA ──► GPIO 21
-  SCL ──► GPIO 22
-  所有 SG90 接在 PCA9685 的 CH0~CH5
 ```
 
 ### 2.3 電源注意事項
 
-> ⚠️ **重要**：6 顆 SG90 同時運作時，瞬間電流可能超過 2A。  
+> ⚠️ **重要**：SG90 運作時，瞬間電流較大。  
 > **絕對不要從 ESP32 的 5V pin 直接供電給馬達！**  
 > 必須使用獨立 5V 電源供應器，ESP32 和馬達共地 (GND)。
 
 ```
 [5V 電源] ──┬── ESP32 (VIN)
-            ├── SG90 ×6 (VCC)
-            ├── 繼電器模組 (VCC)
+            ├── SG90 ×2 (VCC)
             └── 共同 GND
 ```
 
@@ -279,7 +261,7 @@ ESP32 驅動 SG90 開門（指定艙位）
 ```json
 {
     "action": "OPEN",
-    "door_index": 4,
+    "door_index": 1,
     "pwm_ms": 1500,
     "auto_close_sec": 3,
     "request_id": "ord_42_1716990300"
@@ -289,7 +271,7 @@ ESP32 驅動 SG90 開門（指定艙位）
 | 欄位 | 類型 | 說明 |
 |------|------|------|
 | `action` | string | 動作類型：`"OPEN"` = 開門 |
-| `door_index` | int | 艙位編號（1~6） |
+| `door_index` | int | 艙位編號（展示版為 1~2） |
 | `pwm_ms` | int | SG90 PWM 脈寬（微秒）。1500 = 90°（開門位置） |
 | `auto_close_sec` | int | 幾秒後自動關門（復位到 0°） |
 | `request_id` | string | 請求 ID，用於日誌追蹤 |
@@ -300,7 +282,7 @@ ESP32 驅動 SG90 開門（指定艙位）
 收到 MQTT 訊息
     │
     ├── 解析 JSON
-    ├── 驗證 door_index 範圍 (1~6)
+    ├── 驗證 door_index 範圍 (1~2)
     │
     ├── 輸出 PWM 到對應 GPIO
     │   └── SG90: 0° = 500μs (鎖), 90° = 1500μs (開)
@@ -310,33 +292,27 @@ ESP32 驅動 SG90 開門（指定艙位）
     └── 復位 PWM 到 500μs (關門)
 ```
 
-### 5.3 發布主題 — 環境遙測（ESP32 → 伺服器）
+### 5.3 發布主題 — 環境遙測（ESP32 → 伺服器，展示用可模擬或省略）
+
+> 📌 **說明**：由於展示版移除了溫濕度感測器與繼電器，此主題為**選配**。若要上報，可使用模擬值（Virtual Values）進行定時發布，以維持與後端 API 規格的相容性。
 
 **Topic：** `v1/machines/{machine_id}/telemetry`
 
-**頻率：** 每 **60 秒** 發布一次
+**頻率：** 每 **60 秒** 發布一次 (選配)
 
-**Payload：**
+**Payload（模擬值範例）：**
 
 ```json
 {
-    "temperature": 15.2,
-    "humidity": 60.5,
+    "temperature": 18.5,
+    "humidity": 55.0,
     "hardware_status": {
-        "cooling_relay": true,
+        "cooling_relay": false,
         "heating_relay": false
     },
     "timestamp": "2026-05-29T16:20:00Z"
 }
 ```
-
-| 欄位 | 類型 | 說明 |
-|------|------|------|
-| `temperature` | float | DHT11 讀取的溫度（°C） |
-| `humidity` | float | DHT11 讀取的濕度（%） |
-| `hardware_status.cooling_relay` | bool | 冷藏繼電器是否通電 |
-| `hardware_status.heating_relay` | bool | 加熱繼電器是否通電 |
-| `timestamp` | string | ISO 8601 時間戳 |
 
 ### 5.4 發布主題 — 心跳（ESP32 → 伺服器）
 
@@ -358,7 +334,7 @@ ESP32 驅動 SG90 開門（指定艙位）
 
 ## 6. 韌體狀態機
 
-ESP32 韌體本身很簡單，不需要追蹤訂單狀態。只需要處理三件事：
+ESP32 韌體本身很簡單，不需要追蹤訂單狀態。只需要處理下列事情：
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -367,7 +343,7 @@ ESP32 韌體本身很簡單，不需要追蹤訂單狀態。只需要處理三�
 │  [每 16ms] 檢查旋鈕中斷旗標                      │
 │     └── 有旗標 → 發 HTTP POST → 清除旗標         │
 │                                                   │
-│  [每 60s] 讀取 DHT11 → 控制繼電器 → 發 MQTT 遙測  │
+│  [每 60s] 發送虛擬 MQTT 遙測（選配）              │
 │                                                   │
 │  [每 30s] 發 MQTT 心跳                            │
 │                                                   │
@@ -430,45 +406,9 @@ void loop() {
 }
 ```
 
-### 7.2 溫控互斥防護 — ⚠️ 必做
+### 7.2 溫控與繼電器防護 — ⚠️ 展示版已省略
 
-**冷藏和加熱繼電器絕對不能同時通電！**  
-安全邏輯必須鎖在韌體最底層，不依賴雲端指令。
-
-```cpp
-#define PIN_COOLING 25
-#define PIN_HEATING 26
-
-// 溫度閾值
-#define TEMP_COOL_ON  18.0   // 高於此溫度開冷藏
-#define TEMP_COOL_OFF 12.0   // 低於此溫度關冷藏
-#define TEMP_HEAT_ON   3.0   // 低於此溫度開加熱
-#define TEMP_HEAT_OFF  8.0   // 高於此溫度關加熱
-
-void updateTempControl(float temp) {
-    // ⚠️ 互斥鎖：硬編碼在最底層
-    if (temp > TEMP_COOL_ON) {
-        digitalWrite(PIN_HEATING, LOW);   // 先關加熱！
-        delay(100);                        // 等繼電器釋放
-        digitalWrite(PIN_COOLING, HIGH);  // 再開冷藏
-    } else if (temp < TEMP_HEAT_ON) {
-        digitalWrite(PIN_COOLING, LOW);   // 先關冷藏！
-        delay(100);
-        digitalWrite(PIN_HEATING, HIGH);  // 再開加熱
-    } else if (temp < TEMP_COOL_OFF && temp > TEMP_HEAT_OFF) {
-        // 舒適區，全關
-        digitalWrite(PIN_COOLING, LOW);
-        digitalWrite(PIN_HEATING, LOW);
-    }
-
-    // 最終防線：絕不允許同時 HIGH
-    if (digitalRead(PIN_COOLING) == HIGH && digitalRead(PIN_HEATING) == HIGH) {
-        digitalWrite(PIN_COOLING, LOW);
-        digitalWrite(PIN_HEATING, LOW);
-        Serial.println("🚨 互斥違規！已強制關閉所有繼電器");
-    }
-}
-```
+> 📌 **說明**：本展示演示版**無須繼電器與溫控模組**，因此已省略此章節。硬體上無須連接繼電器與冷藏/加熱設備。
 
 ### 7.3 HTTP 請求防連發
 
@@ -495,7 +435,10 @@ void triggerGacha() {
 // SG90 持續通電會發熱！開門後務必在關門後 detach
 void openDoor(int doorIndex, int pwmMs, int autoCloseSec) {
     Servo servo;
-    int pin = doorPins[doorIndex - 1];  // 轉換為 GPIO
+    // 驗證 doorIndex 確保不溢位 (展示版僅 1~2)
+    if (doorIndex < 1 || doorIndex > 2) return;
+    
+    int pin = DOOR_PINS[doorIndex - 1];  // 轉換為 GPIO
 
     servo.attach(pin);
     servo.writeMicroseconds(pwmMs);     // 開門（例：1500μs = 90°）
@@ -517,7 +460,6 @@ esp32-firmware/
 │   ├── config.h              # WiFi / MQTT / API 設定常數
 │   ├── knob.h / knob.cpp     # 旋鈕偵測（中斷 + debounce）
 │   ├── doors.h / doors.cpp   # SG90 控制（開門 / 關門）
-│   ├── climate.h / climate.cpp  # DHT11 + 繼電器控制
 │   ├── api_client.h / api_client.cpp  # HTTP POST 封裝
 │   └── mqtt_client.h / mqtt_client.cpp # MQTT 連線 + 訊息處理
 ├── platformio.ini            # PlatformIO 設定
@@ -533,7 +475,6 @@ esp32-firmware/
 | `PubSubClient` | MQTT Client | `knolleary/PubSubClient` |
 | `ArduinoJson` | JSON 解析/產生 | `bblanchon/ArduinoJson@^7` |
 | `ESP32Servo` | PWM 伺服馬達控制 | `madhephaestus/ESP32Servo` |
-| `DHT` | 溫濕度讀取 | `adafruit/DHT sensor library` |
 
 ### 8.2 config.h 範例
 
@@ -566,18 +507,15 @@ esp32-firmware/
 // === 硬體腳位 ===
 #define PIN_KNOB_CLK   34
 #define PIN_KNOB_DT    35
-#define PIN_DHT        4
-#define PIN_COOL_RELAY 25
-#define PIN_HEAT_RELAY 26
 
-// SG90 門腳位
-const int DOOR_PINS[] = {13, 14, 15, 16, 17, 18};
-#define NUM_DOORS      6
+// SG90 門腳位 (僅使用 2 個 GPIO 控制兩個 SG90 馬達)
+const int DOOR_PINS[] = {13, 14};
+#define NUM_DOORS      2
 
 // === 時間常數 ===
 #define DEBOUNCE_MS        500
 #define HTTP_COOLDOWN_MS   2000
-#define TELEMETRY_INTERVAL 60000  // 60 秒
+#define TELEMETRY_INTERVAL 60000  // 60 秒 (模擬選配)
 #define HEARTBEAT_INTERVAL 30000  // 30 秒
 
 #endif
@@ -644,9 +582,7 @@ curl -X POST http://localhost:3000/api/v1/machines/trigger \
 🚪 開門 #4 (PWM: 1500μs, 自動關門: 3s)
 🚪 門 #4 已關閉
 
-🌡️ 溫度: 15.2°C, 濕度: 60.5%
-❄️ 冷藏繼電器: ON
-📤 遙測上報完成
+🌡️ 遙測上報完成（如上報模擬值）
 ```
 
 ---
@@ -678,15 +614,14 @@ A: PubSubClient 的 `loop()` 會自動嘗試重連。設定 `setKeepAlive(60)` �
 **Q: 如何更新韌體？**  
 A: MVP 階段用 USB 燒錄。未來可加入 ESP32 OTA（Over-The-Air）更新。
 
-### C. 開發里程碑建議
+### C. 開發里程碑建議 (簡化展示版)
 
 | 階段 | 目標 | 預估時間 |
 |------|------|----------|
 | 1 | WiFi 連線 + Serial 輸出 | 0.5 天 |
 | 2 | 旋鈕偵測 + Debounce | 0.5 天 |
 | 3 | HTTP POST 觸發 API | 1 天 |
-| 4 | SG90 開門 / 關門 | 0.5 天 |
-| 5 | DHT11 + 繼電器互斥控制 | 0.5 天 |
-| 6 | MQTT 連線 + 開門指令 | 1 天 |
-| 7 | 整合測試 | 1 天 |
-| **合計** | | **~5 天** |
+| 4 | SG90 (門 1 與 2) 開門 / 關門 | 0.5 天 |
+| 5 | MQTT 連線 + 開門指令接收 | 1 天 |
+| 6 | 整合測試 | 0.5 天 |
+| **合計** | | **~4 天** |
