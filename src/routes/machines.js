@@ -122,6 +122,10 @@ machines.post('/:machineId/gacha/start', async (c) => {
         return error(c, 'POOL_EMPTY', '目前無可抽獎商品（可能已被過敏原或類別篩選排除）', 400);
     }
 
+    if (pool.length === 1) {
+        return error(c, 'POOL_TOO_SMALL', '符合條件的商品僅剩 1 個時無法進行扭蛋，請使用「直接購買」方式選購！', 400);
+    }
+
     // 建立訂單與鎖定機台
     const orderId = transaction(() => {
         const timeoutAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();

@@ -243,7 +243,8 @@ class TabletApp {
           <div class="pool-info mt-16">
             <div class="pool-info__count">${poolInfo.count} 項可抽</div>
             <div class="pool-info__price">平均 $${poolInfo.avgPrice}</div>
-            ${isEmpty ? '<div class="pool-warning">沒有符合條件的品項，請減少篩選項目</div>' : ''}
+            ${poolInfo.count === 0 ? '<div class="pool-warning">沒有符合條件的品項，請減少篩選項目</div>' : ''}
+            ${poolInfo.count === 1 ? '<div class="pool-warning" style="background: rgba(211,47,47,0.1); color: #d32f2f;">剩餘 1 個商品時失去隨機趣味，請至首頁直接選購！</div>' : ''}
           </div>
         </div>
 
@@ -251,7 +252,7 @@ class TabletApp {
           <button class="btn btn--secondary" style="flex:1" onclick="app.setState('IDLE')">
             返回
           </button>
-          <button class="btn btn--primary" style="flex:2" ${isEmpty ? 'disabled' : ''}
+          <button class="btn btn--primary" style="flex:2" ${poolInfo.count < 2 ? 'disabled' : ''}
                   onclick="app.onConfirmAllergens()">
             確認
           </button>
