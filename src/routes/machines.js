@@ -93,19 +93,103 @@ machines.post('/:machineId/gacha/start', requireAuth(), async (c) => {
         return error(c, 'POOL_EMPTY', '目前無可抽獎商品（可能已被過敏原篩選排除）', 400);
     }
 
-    // 建立訂單
-    const result = query(
-        `INSERT INTO orders (user_id, order_type, machine_id, excluded_allergens, pool_size, pool_avg_price, amount, status)
-         VALUES (?, 'machine_gacha', ?, ?, ?, ?, ?, 'PENDING')`,
-        [user.id, machineId, JSON.stringify(excluded_allergens), pool.length, avgPrice, avgPrice]
-    );
+    // 建立訂單與鎖定機台
+    const orderId = transaction(() => {
+        const result = query(
+            `INSERT INTO orders (user_id, order_type, machine_id, excluded_allergens, pool_size, pool_avg_price, amount, status)
+             VALUES (?, 'machine_gacha', ?, ?, ?, ?, ?, 'PENDING')`,
+            [user.id, machineId, JSON.stringify(excluded_allergens), pool.length, avgPrice, avgPrice]
+        );
 
-    const orderId = Number(result.meta.last_row_id);
+        const oId = Number(result.meta.last_row_id);
+
+        // 鎖定機台為付款中，並綁定活動訂單
+        query(
+            `UPDATE machines SET status = 'WAITING_FOR_PAYMENT', active_order_id = ? WHERE id = ?`,
+            [oId, machineId]
+        );
+
+        return oId;
+    });
 
     return success(c, {
         pool_size: pool.length,
         pool_avg_price: avgPrice,
         order_id: orderId,
+    });
+});
+
+// ============================================
+// 2.2. POST /:machineId/purchase/start — 直接購買特定艙位商品
+// ============================================
+machines.post('/:machineId/purchase/start', requireAuth(), async (c) => {
+    const { machineId } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json();
+    const { compartment_index } = body; // 艙位編號 1~6
+
+    if (!compartment_index) {
+        return error(c, 'MISSING_FIELDS', '請提供 compartment_index');
+    }
+
+    // 確認機台存在
+    const machine = queryFirst('SELECT * FROM machines WHERE id = ?', [machineId]);
+    if (!machine) {
+        return error(c, 'MACHINE_NOT_FOUND', '找不到此機台', 404);
+    }
+
+    // 確認機台閒置
+    if (machine.status !== 'IDLE') {
+        return error(c, 'MACHINE_BUSY', '機台忙碌中，請稍後再試', 409);
+    }
+
+    // 取得艙位與商品詳情
+    const compartment = queryFirst(
+        `SELECT c.id as compartment_id, c.status, p.id as product_id, p.name, p.selling_price
+         FROM compartments c
+         LEFT JOIN products p ON c.product_id = p.id
+         WHERE c.machine_id = ? AND c.index_num = ?`,
+        [machineId, parseInt(compartment_index)]
+    );
+
+    if (!compartment) {
+        return error(c, 'COMPARTMENT_NOT_FOUND', '找不到此艙位', 404);
+    }
+
+    if (compartment.status !== 'STOCKED' || !compartment.product_id) {
+        return error(c, 'COMPARTMENT_NOT_AVAILABLE', '該艙位目前無可購買商品', 400);
+    }
+
+    // 建立訂單，標記 order_type 為 'machine_purchase'，並指定 compartment_id, product_id
+    const orderId = transaction(() => {
+        // 預留該艙位 (STOCKED -> RESERVED)
+        query(
+            `UPDATE compartments SET status = 'RESERVED' WHERE id = ?`,
+            [compartment.compartment_id]
+        );
+
+        // 建立 PENDING 訂單
+        const orderResult = query(
+            `INSERT INTO orders (user_id, order_type, machine_id, store_id, product_id, compartment_id, amount, status)
+             VALUES (?, 'machine_purchase', ?, 
+                     (SELECT store_id FROM products WHERE id = ?), 
+                     ?, ?, ?, 'PENDING')`,
+            [user.id, machineId, compartment.product_id, compartment.product_id, compartment.compartment_id, compartment.selling_price]
+        );
+
+        // 更新機台狀態為 WAITING_FOR_PAYMENT 且記錄 active_order_id (避免其他人同時在平板操作)
+        query(
+            `UPDATE machines SET status = 'WAITING_FOR_PAYMENT', active_order_id = ? WHERE id = ?`,
+            [Number(orderResult.meta.last_row_id), machineId]
+        );
+
+        return Number(orderResult.meta.last_row_id);
+    });
+
+    return success(c, {
+        order_id: orderId,
+        product_name: compartment.name,
+        price: compartment.selling_price,
     });
 });
 
@@ -159,6 +243,53 @@ machines.post('/:machineId/gacha/pay', requireAuth(), async (c) => {
 });
 
 // ============================================
+// 3.5. POST /:machineId/gacha/cancel — 取消進行中的訂單（釋放機台與可能預留的艙位）
+// ============================================
+machines.post('/:machineId/gacha/cancel', requireAuth(), async (c) => {
+    const { machineId } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json();
+    const { order_id } = body;
+
+    if (!order_id) {
+        return error(c, 'MISSING_FIELDS', '請提供 order_id');
+    }
+
+    const order = queryFirst(
+        'SELECT * FROM orders WHERE id = ? AND user_id = ? AND status = ?',
+        [order_id, user.id, 'PENDING']
+    );
+
+    if (!order) {
+        return error(c, 'ORDER_NOT_FOUND', '找不到該筆待付款訂單', 404);
+    }
+
+    transaction(() => {
+        // 更新訂單狀態為 CANCELLED
+        query(
+            `UPDATE orders SET status = 'CANCELLED', updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
+            [order_id]
+        );
+
+        // 如果是直接購買，釋放已預留的艙位 (RESERVED -> STOCKED)
+        if (order.compartment_id) {
+            query(
+                `UPDATE compartments SET status = 'STOCKED' WHERE id = ?`,
+                [order.compartment_id]
+            );
+        }
+
+        // 重設機台狀態為 IDLE
+        query(
+            `UPDATE machines SET status = 'IDLE', active_order_id = NULL WHERE id = ?`,
+            [machineId]
+        );
+    });
+
+    return success(c, { message: '訂單已取消，艙位與機台已釋放' });
+});
+
+// ============================================
 // 4. POST /trigger — ESP32 觸發（使用 secret_key 驗證，無 JWT）
 // ============================================
 machines.post('/trigger', async (c) => {
@@ -189,18 +320,35 @@ machines.post('/trigger', async (c) => {
         return error(c, 'NO_WAITING_ORDER', '目前無等待觸發的訂單', 403);
     }
 
-    // 取得商品池並抽獎
-    const excludedAllergens = order.excluded_allergens ? JSON.parse(order.excluded_allergens) : [];
-    const { pool } = getFilteredPool(machine_id, excludedAllergens);
+    let won = null;
+    let points = 0;
 
-    if (pool.length === 0) {
-        return error(c, 'POOL_EMPTY', '商品池已空', 400);
+    if (order.order_type === 'machine_purchase') {
+        // 直接購買：直接讀取預留之艙位商品
+        const comp = queryFirst(
+            `SELECT c.id as compartment_id, c.index_num, p.id as product_id, p.name, p.category, p.selling_price, p.original_price
+             FROM compartments c
+             JOIN products p ON c.product_id = p.id
+             WHERE c.id = ?`,
+            [order.compartment_id]
+        );
+        if (!comp) {
+            return error(c, 'COMPARTMENT_NOT_AVAILABLE', '商品已被他人抽走或艙位狀態不正確', 400);
+        }
+        won = comp;
+        points = calculatePoints(won.selling_price);
+    } else {
+        // 扭蛋抽獎：取得商品池並抽獎
+        const excludedAllergens = order.excluded_allergens ? JSON.parse(order.excluded_allergens) : [];
+        const { pool } = getFilteredPool(machine_id, excludedAllergens);
+
+        if (pool.length === 0) {
+            return error(c, 'POOL_EMPTY', '商品池已空', 400);
+        }
+
+        won = drawFromPool(pool);
+        points = calculatePoints(won.selling_price);
     }
-
-    const won = drawFromPool(pool);
-
-    // 計算點數
-    const points = calculatePoints(won.selling_price);
 
     transaction(() => {
         // 更新訂單
@@ -259,9 +407,11 @@ machines.get('/:machineId/latest-result', async (c) => {
 
     const order = queryFirst(
         `SELECT o.id, o.status, o.product_id, o.compartment_id, o.points_earned,
-                p.name as product_name, p.category, p.selling_price, p.original_price
+                p.name as product_name, p.category, p.selling_price, p.original_price,
+                c.index_num as compartment_index
          FROM orders o
          LEFT JOIN products p ON o.product_id = p.id
+         LEFT JOIN compartments c ON o.compartment_id = c.id
          WHERE o.machine_id = ? AND o.status IN ('DISPENSING', 'COMPLETED')
          ORDER BY o.updated_at DESC
          LIMIT 1`,
@@ -282,6 +432,7 @@ machines.get('/:machineId/latest-result', async (c) => {
                 category: order.category,
                 selling_price: order.selling_price,
                 original_price: order.original_price,
+                compartment_index: order.compartment_index,
             },
             points_earned: order.points_earned,
         },

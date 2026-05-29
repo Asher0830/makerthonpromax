@@ -92,6 +92,7 @@ products.get('/', async (c) => {
     const radius = parseFloat(c.req.query('radius')) || 3;
     const category = c.req.query('category');
     const status = c.req.query('status') || 'AVAILABLE';
+    const store_id = c.req.query('store_id');
 
     const conditions = ['p.status = ?'];
     const params = [status];
@@ -104,6 +105,11 @@ products.get('/', async (c) => {
     if (category) {
         conditions.push('p.category = ?');
         params.push(category);
+    }
+
+    if (store_id) {
+        conditions.push('p.store_id = ?');
+        params.push(parseInt(store_id, 10));
     }
 
     const whereClause = conditions.join(' AND ');

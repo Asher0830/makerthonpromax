@@ -141,9 +141,15 @@ class TabletApp {
       else cls += ' compartment-slot--empty';
 
       const statusLabel = { stocked: '已補貨', empty: '空', dispensed: '已出餐' }[c.status] || c.status;
+      const clickHandler = c.status === 'stocked' && winnerIndex === -1 && this.state === 'IDLE'
+        ? `onclick="app.onDirectPurchase(${c.number})"`
+        : '';
+      const style = c.status === 'stocked' && winnerIndex === -1 && this.state === 'IDLE'
+        ? 'cursor: pointer;'
+        : '';
 
       return `
-        <div class="${cls}">
+        <div class="${cls}" ${clickHandler} style="${style}">
           <span class="compartment-slot__number">${c.number}</span>
           <span class="compartment-slot__status">${statusLabel}</span>
           ${c.productName ? `<span class="compartment-slot__product">${c.productName}</span>` : ''}
@@ -422,7 +428,29 @@ class TabletApp {
     }
   }
 
-  onCancelPayment() {
+  async onDirectPurchase(compartmentIndex) {
+    try {
+      const result = await window.tabletAPI.startDirectPurchase(this.machineId, compartmentIndex);
+      this.setState('WAITING_PAYMENT', {
+        currentOrder: {
+          orderId: result.orderId,
+          amount: result.amount,
+          expiresAt: Date.now() + 5 * 60 * 1000,
+        },
+      });
+    } catch (err) {
+      this.setState('ERROR', { errorMessage: err.message });
+    }
+  }
+
+  async onCancelPayment() {
+    if (this.currentOrder && this.currentOrder.orderId) {
+      try {
+        await window.tabletAPI.cancelGachaOrder(this.machineId, this.currentOrder.orderId);
+      } catch (err) {
+        console.warn('Failed to cancel order on server:', err);
+      }
+    }
     this.currentOrder = null;
     this.setState('IDLE');
   }

@@ -99,6 +99,74 @@ orders.get('/me', requireAuth(), async (c) => {
 });
 
 // ============================================
+// 2.5. GET /:id — 取得單筆訂單詳情
+// ============================================
+orders.get('/:id', requireAuth(), async (c) => {
+    const user = c.get('user');
+    const { id } = c.req.param();
+
+    const order = queryFirst(
+        `SELECT o.id, o.order_type, o.status, o.amount, o.pickup_code,
+                o.points_earned, o.paid_at, o.completed_at, o.created_at,
+                p.name as product_name, p.category,
+                s.id as store_id, s.name as store_name, o.user_id
+         FROM orders o
+         LEFT JOIN products p ON o.product_id = p.id
+         LEFT JOIN stores s ON o.store_id = s.id
+         WHERE o.id = ?`,
+        [parseInt(id)]
+    );
+
+    if (!order) {
+        return error(c, 'ORDER_NOT_FOUND', '找不到此訂單', 404);
+    }
+
+    // 檢查權限：訂單擁有者，或者是店面老闆
+    const isOwner = order.user_id === user.id;
+    let isStoreOwnerOfOrder = false;
+    if (user.role === 'store_owner') {
+        const ownStore = queryFirst('SELECT id FROM stores WHERE user_id = ?', [user.id]);
+        if (ownStore && ownStore.id === order.store_id) {
+            isStoreOwnerOfOrder = true;
+        }
+    }
+
+    if (!isOwner && !isStoreOwnerOfOrder) {
+        return error(c, 'UNAUTHORIZED', '無權查看此訂單', 403);
+    }
+
+    return success(c, order);
+});
+
+// ============================================
+// 2.8. GET /store — 店家的訂單列表
+// ============================================
+orders.get('/store', requireAuth(), requireRole('store_owner'), async (c) => {
+    const user = c.get('user');
+
+    // 找到店家的 store_id
+    const store = queryFirst('SELECT id FROM stores WHERE user_id = ?', [user.id]);
+    if (!store) {
+        return error(c, 'STORE_NOT_FOUND', '找不到您的店家資料', 404);
+    }
+
+    const { results } = query(
+        `SELECT o.id, o.order_type, o.status, o.amount, o.pickup_code,
+                o.points_earned, o.paid_at, o.completed_at, o.created_at,
+                p.name as product_name, p.category,
+                u.name as user_name
+         FROM orders o
+         LEFT JOIN products p ON o.product_id = p.id
+         LEFT JOIN users u ON o.user_id = u.id
+         WHERE o.store_id = ?
+         ORDER BY o.created_at DESC`,
+        [store.id]
+    );
+
+    return success(c, { orders: results });
+});
+
+// ============================================
 // 3. POST /:id/complete — 完成訂單 / 取餐驗證（店家）
 // ============================================
 orders.post('/:id/complete', requireAuth(), requireRole('store_owner'), async (c) => {

@@ -28,52 +28,75 @@ class ApiClient {
 
         if (!res.ok) {
             const err = await res.json().catch(() => ({ error: '請求失敗' }));
-            throw new Error(err.error || '請求失敗');
+            let errMsg = '請求失敗';
+            if (err && err.error) {
+                if (typeof err.error === 'object') {
+                    errMsg = err.error.message || err.error.code || JSON.stringify(err.error);
+                } else {
+                    errMsg = err.error;
+                }
+            } else if (err && err.message) {
+                errMsg = err.message;
+            }
+            throw new Error(errMsg);
         }
 
-        return res.json();
+        const json = await res.json();
+        return json.data;
     }
 
     // Auth
-    login(email, password) { return this.request('POST', '/api/auth/login', { email, password }); }
-    register(data) { return this.request('POST', '/api/auth/register', data); }
+    login(email, password) { return this.request('POST', '/api/v1/auth/login', { email, password }); }
+    register(data) { return this.request('POST', '/api/v1/auth/register', data); }
 
     // Stores
-    getStores() { return this.request('GET', '/api/stores'); }
-    getStore(id) { return this.request('GET', `/api/stores/${id}`); }
-    getMyStore() { return this.request('GET', '/api/stores/me'); }
-    createStore(data) { return this.request('POST', '/api/stores', data); }
+    getStores() { return this.request('GET', '/api/v1/stores/nearby?lat=25.04&lng=121.54&radius=10'); }
+    getStore(id) { return this.request('GET', `/api/v1/stores/${id}`); }
+    getMyStore() { return this.request('GET', '/api/v1/stores/me'); }
+    createStore(data) { return this.request('POST', '/api/v1/stores', data); }
 
     // Products
     getProducts(params = {}) {
         const query = new URLSearchParams(params).toString();
-        return this.request('GET', `/api/products${query ? '?' + query : ''}`);
+        return this.request('GET', `/api/v1/products${query ? '?' + query : ''}`);
     }
-    getProduct(id) { return this.request('GET', `/api/products/${id}`); }
-    createProduct(data) { return this.request('POST', '/api/products', data); }
-    getStoreProducts(storeId) { return this.request('GET', `/api/stores/${storeId}/products`); }
+    getProduct(id) { return this.request('GET', `/api/v1/products/${id}`); }
+    createProduct(data) { return this.request('POST', '/api/v1/products', data); }
+    getStoreProducts(storeId) { return this.request('GET', `/api/v1/products?store_id=${storeId}`); }
 
     // Machines
-    getMachines() { return this.request('GET', '/api/machines'); }
-    getMachine(id) { return this.request('GET', `/api/machines/${id}`); }
-    pairMachine(token) { return this.request('POST', '/api/machines/pair', { token }); }
-    stockCompartment(machineId, compartment, productId) {
-        return this.request('POST', `/api/machines/${machineId}/stock`, { compartment, productId });
+    getMachines() { return this.request('GET', '/api/v1/machines'); }
+    getMachine(id) { return this.request('GET', `/api/v1/machines/${id}/status`); }
+    pairMachine(token) { return this.request('POST', '/api/v1/machines/pair/confirm', { token }); }
+    stockCompartment(machineId, compartmentIndex, productId) {
+        return this.request('POST', `/api/v1/machines/${machineId}/compartments/${compartmentIndex}/stock`, { product_id: productId });
     }
-    getMachineStatus(machineId) { return this.request('GET', `/api/machines/${machineId}/status`); }
+    getMachineStatus(machineId) { return this.request('GET', `/api/v1/machines/${machineId}/status`); }
 
     // Orders
-    getOrders() { return this.request('GET', '/api/orders'); }
-    getOrder(id) { return this.request('GET', `/api/orders/${id}`); }
-    createOrder(data) { return this.request('POST', '/api/orders', data); }
-    getStoreOrders() { return this.request('GET', '/api/orders/store'); }
+    getOrders() { return this.request('GET', '/api/v1/orders/me'); }
+    getOrder(id) { return this.request('GET', `/api/v1/orders/${id}`); }
+    createOrder(data) { return this.request('POST', '/api/v1/orders/map', { product_id: data.productId }); }
+    getStoreOrders() { return this.request('GET', '/api/v1/orders/store'); }
     completeOrder(orderId, pickupCode) {
-        return this.request('POST', `/api/orders/${orderId}/complete`, { pickupCode });
+        return this.request('POST', `/api/v1/orders/${orderId}/complete`, { pickup_code: pickupCode });
     }
 
     // Payment
-    processPayment(orderId) { return this.request('POST', `/api/payments/${orderId}/pay`); }
+    processPayment(orderId) { 
+        return this.request('POST', `/api/v1/machines/MAC_01A2B3/gacha/pay`, { order_id: parseInt(orderId, 10) });
+    }
 
     // Points
-    getPoints() { return this.request('GET', '/api/points'); }
+    async getPoints() {
+        try {
+            const res = await this.request('GET', '/api/v1/auth/me');
+            return {
+                points: res.user?.points ?? 0,
+                history: []
+            };
+        } catch (e) {
+            return { points: 0, history: [] };
+        }
+    }
 }
