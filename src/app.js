@@ -33,7 +33,10 @@ app.route('/api/v1/products', productRoutes);
 app.route('/api/v1/machines', machineRoutes);
 app.route('/api/v1/orders', orderRoutes);
 app.route('/api/v1/payment', paymentRoutes);
-app.route('/api/v1/debug', debugRoutes);
+// [C5 FIX] Debug 路由僅在非生產環境掛載
+if (process.env.NODE_ENV !== 'production') {
+    app.route('/api/v1/debug', debugRoutes);
+}
 
 // ============================================
 // 健康檢查

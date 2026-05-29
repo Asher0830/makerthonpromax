@@ -127,11 +127,6 @@ machines.post('/:machineId/gacha/start', async (c) => {
         return error(c, 'MACHINE_NOT_FOUND', '找不到此機台', 404);
     }
 
-    // 確認機台閒置
-    if (machine.status !== 'IDLE') {
-        return error(c, 'MACHINE_BUSY', '機台忙碌中，請稍後再試', 409);
-    }
-
     // 取得篩選後的商品池（加入商品類別過濾）
     const { pool, avgPrice } = getFilteredPool(machineId, excluded_allergens, category);
 
@@ -143,8 +138,13 @@ machines.post('/:machineId/gacha/start', async (c) => {
         return error(c, 'POOL_TOO_SMALL', '符合條件的商品僅剩 1 個時無法進行扭蛋，請使用「直接購買」方式選購！', 400);
     }
 
-    // 建立訂單與鎖定機台
+    // [H1 FIX] TOCTOU: 機台狀態檢查移入 transaction 內，防止並發
     const orderId = transaction(() => {
+        const freshMachine = queryFirst('SELECT status FROM machines WHERE id = ?', [machineId]);
+        if (freshMachine.status !== 'IDLE') {
+            return { error: 'MACHINE_BUSY' };
+        }
+
         const timeoutAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
         const result = query(
             `INSERT INTO orders (user_id, order_type, machine_id, excluded_allergens, pool_size, pool_avg_price, amount, status, timeout_at)
@@ -162,6 +162,11 @@ machines.post('/:machineId/gacha/start', async (c) => {
 
         return oId;
     });
+
+    // TOCTOU: transaction 內回傳 error 物件表示機台忙碌
+    if (orderId && typeof orderId === 'object' && orderId.error) {
+        return error(c, 'MACHINE_BUSY', '機台忙碌中，請稍後再試', 409);
+    }
 
     return success(c, {
         pool_size: pool.length,
@@ -195,7 +200,8 @@ machines.post('/:machineId/purchase/start', async (c) => {
     const body = await c.req.json();
     const { compartment_index } = body; // 艙位編號 1~6
 
-    if (!compartment_index) {
+    // [M9 FIX] compartment_index == 0 不應被 falsy 擋住
+    if (compartment_index === undefined || compartment_index === null) {
         return error(c, 'MISSING_FIELDS', '請提供 compartment_index');
     }
 
@@ -205,14 +211,9 @@ machines.post('/:machineId/purchase/start', async (c) => {
         return error(c, 'MACHINE_NOT_FOUND', '找不到此機台', 404);
     }
 
-    // 確認機台閒置
-    if (machine.status !== 'IDLE') {
-        return error(c, 'MACHINE_BUSY', '機台忙碌中，請稍後再試', 409);
-    }
-
-    // 取得艙位與商品詳情
+    // [H8 FIX] 取得艙位與商品詳情，加入 product status 檢查
     const compartment = queryFirst(
-        `SELECT c.id as compartment_id, c.status, p.id as product_id, p.name, p.selling_price
+        `SELECT c.id as compartment_id, c.status, p.id as product_id, p.name, p.selling_price, p.status as product_status
          FROM compartments c
          LEFT JOIN products p ON c.product_id = p.id
          WHERE c.machine_id = ? AND c.index_num = ?`,
@@ -227,8 +228,18 @@ machines.post('/:machineId/purchase/start', async (c) => {
         return error(c, 'COMPARTMENT_NOT_AVAILABLE', '該艙位目前無可購買商品', 400);
     }
 
-    // 建立訂單，標記 order_type 為 'machine_purchase'，並指定 compartment_id, product_id
+    // [H8 FIX] 額外檢查商品狀態
+    if (compartment.product_status !== 'AVAILABLE') {
+        return error(c, 'PRODUCT_NOT_AVAILABLE', '該商品已過期或已售出', 400);
+    }
+
+    // [H2 FIX] TOCTOU: 機台狀態檢查移入 transaction 內
     const orderId = transaction(() => {
+        const freshMachine = queryFirst('SELECT status FROM machines WHERE id = ?', [machineId]);
+        if (freshMachine.status !== 'IDLE') {
+            return { error: 'MACHINE_BUSY' };
+        }
+
         // 預留該艙位 (STOCKED -> RESERVED)
         query(
             `UPDATE compartments SET status = 'RESERVED' WHERE id = ?`,
@@ -245,7 +256,7 @@ machines.post('/:machineId/purchase/start', async (c) => {
             [userId, machineId, compartment.product_id, compartment.product_id, compartment.compartment_id, compartment.selling_price, timeoutAt]
         );
 
-        // 更新機台狀態為 WAITING_FOR_PAYMENT 且記錄 active_order_id (避免其他人同時在平板操作)
+        // 更新機台狀態為 WAITING_FOR_PAYMENT
         query(
             `UPDATE machines SET status = 'WAITING_FOR_PAYMENT', active_order_id = ? WHERE id = ?`,
             [Number(orderResult.meta.last_row_id), machineId]
@@ -253,6 +264,11 @@ machines.post('/:machineId/purchase/start', async (c) => {
 
         return Number(orderResult.meta.last_row_id);
     });
+
+    // TOCTOU: transaction 內回傳 error 物件
+    if (orderId && typeof orderId === 'object' && orderId.error) {
+        return error(c, 'MACHINE_BUSY', '機台忙碌中，請稍後再試', 409);
+    }
 
     return success(c, {
         order_id: orderId,
@@ -363,14 +379,14 @@ machines.post('/:machineId/gacha/cancel', async (c) => {
         return error(c, 'MISSING_FIELDS', '請提供 order_id');
     }
 
-    // 驗證訂單存在、屬於該機台且狀態為 PENDING
+    // [M10 FIX] 支援取消 PENDING 和 WAITING_FOR_TRIGGER 訂單
     const order = queryFirst(
-        'SELECT * FROM orders WHERE id = ? AND machine_id = ? AND status = ?',
-        [order_id, machineId, 'PENDING']
+        `SELECT * FROM orders WHERE id = ? AND machine_id = ? AND status IN ('PENDING', 'WAITING_FOR_TRIGGER')`,
+        [order_id, machineId]
     );
 
     if (!order) {
-        return error(c, 'ORDER_NOT_FOUND', '找不到該筆待付款訂單', 404);
+        return error(c, 'ORDER_NOT_FOUND', '找不到該筆可取消的訂單', 404);
     }
 
     transaction(() => {
@@ -471,8 +487,11 @@ machines.post('/trigger', async (c) => {
         }
         const { pool } = getFilteredPool(machine_id, allergens, category);
 
+        // [H9 FIX] Pool 為空時自動退款並重置機台
         if (pool.length === 0) {
-            return error(c, 'POOL_EMPTY', '商品池已空', 400);
+            query(`UPDATE orders SET status = 'CANCELLED', updated_at = datetime('now') WHERE id = ?`, [order.id]);
+            query(`UPDATE machines SET status = 'IDLE', active_order_id = NULL WHERE id = ?`, [machine_id]);
+            return error(c, 'POOL_EMPTY', '商品池已空，訂單已取消退款', 400);
         }
 
         won = drawFromPool(pool);
@@ -511,8 +530,10 @@ machines.post('/trigger', async (c) => {
                 [won.compartment_id]
             );
 
-            // 發放點數
-            awardPoints(order.user_id, points);
+            // 發放點數 [M16 FIX] null userId 防護
+            if (order.user_id) {
+                awardPoints(order.user_id, points);
+            }
 
             // 更新商品狀態
             query(
@@ -602,6 +623,22 @@ machines.get('/:machineId/latest-result', async (c) => {
 // ============================================
 machines.post('/:machineId/complete', async (c) => {
     const { machineId } = c.req.param();
+
+    // [H7 FIX] 支援 secret_key 驗證（ESP32 呼叫）
+    const body = await c.req.json().catch(() => ({}));
+    const secretKey = body.secret_key || c.req.query('secret_key');
+    const machine = queryFirst('SELECT secret_key FROM machines WHERE id = ?', [machineId]);
+    if (!machine) {
+        return error(c, 'MACHINE_NOT_FOUND', '找不到此機台', 404);
+    }
+    // 驗證 secret_key（允許 ESP32 或平板呼叫）
+    if (secretKey) {
+        const isValid = secretKey === machine.secret_key ||
+                        (machineId === 'MAC_01A2B3' && (secretKey === 'sec_01a2b3' || secretKey === 'dev_secret_key_001'));
+        if (!isValid) {
+            return error(c, 'INVALID_SECRET', '金鑰驗證失敗', 403);
+        }
+    }
 
     const dispensingOrders = query(
         `SELECT id, compartment_id
@@ -799,13 +836,14 @@ machines.get('/:machineId/pop-command', async (c) => {
         return error(c, 'MACHINE_NOT_FOUND', '找不到此機台', 404);
     }
 
-    // 驗證 secret_key（ESP32 必須攜帶金鑰）
-    if (secretKey) {
-        const isValidSecret = secretKey === machine.secret_key ||
-                              (machineId === 'MAC_01A2B3' && (secretKey === 'sec_01a2b3' || secretKey === 'dev_secret_key_001'));
-        if (!isValidSecret) {
-            return error(c, 'INVALID_SECRET', '金鑰驗證失敗', 403);
-        }
+    // [C6 FIX] 強制要求 secret_key
+    if (!secretKey) {
+        return error(c, 'AUTH_REQUIRED', '需要提供 secret_key', 401);
+    }
+    const isValidSecret = secretKey === machine.secret_key ||
+                          (machineId === 'MAC_01A2B3' && (secretKey === 'sec_01a2b3' || secretKey === 'dev_secret_key_001'));
+    if (!isValidSecret) {
+        return error(c, 'INVALID_SECRET', '金鑰驗證失敗', 403);
     }
 
     // 從指令佇列中彈出最早的一筆待執行指令
@@ -834,13 +872,14 @@ machines.post('/:machineId/telemetry', async (c) => {
         return error(c, 'MACHINE_NOT_FOUND', '找不到此機台', 404);
     }
 
-    // 若有提供 secret_key 則驗證
-    if (secret_key) {
-        const isValidSecret = secret_key === machine.secret_key || 
-                              (machineId === 'MAC_01A2B3' && (secret_key === 'sec_01a2b3' || secret_key === 'dev_secret_key_001'));
-        if (!isValidSecret) {
-            return error(c, 'INVALID_SECRET', '金鑰驗證失敗', 403);
-        }
+    // [C6 FIX] 強制要求 secret_key
+    if (!secret_key) {
+        return error(c, 'AUTH_REQUIRED', '需要提供 secret_key', 401);
+    }
+    const isValidSecret = secret_key === machine.secret_key || 
+                          (machineId === 'MAC_01A2B3' && (secret_key === 'sec_01a2b3' || secret_key === 'dev_secret_key_001'));
+    if (!isValidSecret) {
+        return error(c, 'INVALID_SECRET', '金鑰驗證失敗', 403);
     }
 
     const telemetry = JSON.stringify({

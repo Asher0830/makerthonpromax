@@ -111,17 +111,17 @@ stores.get('/nearby', async (c) => {
         return error(c, 'MISSING_COORDINATES', '請提供 lat 和 lng 查詢參數');
     }
 
-    // 使用簡易距離公式：sqrt((lat1-lat2)^2 + (lng1-lng2)^2) * 111
-    // 先取出所有活躍店家，在 SQL 層計算距離
+    // [M8 FIX] 加入 cos(lat) 經度修正，降低距離計算誤差
+    const cosLat = Math.cos(lat * Math.PI / 180);
     const { results: storesResult } = query(
         `SELECT s.*,
-            (sqrt((s.latitude - ?) * (s.latitude - ?) + (s.longitude - ?) * (s.longitude - ?)) * 111) AS distance,
+            (sqrt((s.latitude - ?) * (s.latitude - ?) + (s.longitude - ?) * (s.longitude - ?) * ? * ?) * 111) AS distance,
             (SELECT COUNT(*) FROM products p WHERE p.store_id = s.id AND p.status = 'AVAILABLE') AS product_count
          FROM stores s
          WHERE s.is_active = 1
-           AND (sqrt((s.latitude - ?) * (s.latitude - ?) + (s.longitude - ?) * (s.longitude - ?)) * 111) <= ?
+           AND (sqrt((s.latitude - ?) * (s.latitude - ?) + (s.longitude - ?) * (s.longitude - ?) * ? * ?) * 111) <= ?
          ORDER BY distance ASC`,
-        [lat, lat, lng, lng, lat, lat, lng, lng, radius]
+        [lat, lat, lng, lng, cosLat, cosLat, lat, lat, lng, lng, cosLat, cosLat, radius]
     );
 
     return success(c, { stores: storesResult });

@@ -3,6 +3,11 @@
    ═══════════════════════════════════════════════════ */
 
 async function renderConsumerPayPage(orderId) {
+  if (!authManager.isLoggedIn()) {
+    localStorage.setItem('redirect_after_login', location.hash);
+    router.navigate('/login');
+    return;
+  }
   updateBottomNav('orders');
   showLoading();
 
@@ -35,7 +40,7 @@ async function renderConsumerPayPage(orderId) {
   // 若訂單先前已經付款成功，則直接顯示付款成功畫面，避免再次付款顯示「非待付款」
   if (['WAITING_FOR_TRIGGER', 'DISPENSING', 'COMPLETED', 'PAID'].includes(order.status)) {
     hideLoading();
-    const pickupCode = order.pickup_code || order.pickupCode || '';
+    const pickupCode = escapeHtml(order.pickup_code || order.pickupCode || '');
     const hasDispensed = ['DISPENSING', 'COMPLETED'].includes(order.status);
 
     let instructionHTML = '';
@@ -46,7 +51,7 @@ async function renderConsumerPayPage(orderId) {
     } else if (orderType === 'machine_purchase') {
       instructionHTML = `<p class="success-subtitle" style="font-weight: 700; color: var(--primary-color);">請至機台轉動旋鈕以開啟已購買的艙門並取餐！</p>`;
     } else {
-      instructionHTML = pickupCode ? `<div class="pickup-code">${pickupCode}</div><p class="success-subtitle">請出示此取貨碼給店家</p>` : `<p class="success-subtitle">請前往店家取貨</p>`;
+      instructionHTML = pickupCode ? `<div class="pickup-code">${pickupCode}</div><p class="success-subtitle">請出示此取貨碼給店家</p>` : '<p class="success-subtitle">請前往店家取貨</p>';
     }
 
     renderPage(`
@@ -176,7 +181,7 @@ async function renderConsumerPayPage(orderId) {
 
     <div class="page-content" id="pay-content">
       <div class="card pay-summary-card">
-        <div class="pay-product-name">${productName}</div>
+        <div class="pay-product-name">${escapeHtml(productName)}</div>
         <div class="pay-amount">NT$${amount}</div>
       </div>
 
@@ -222,7 +227,7 @@ async function renderConsumerPayPage(orderId) {
       hideLoading();
 
       /* Build success screen */
-      const pickupCode = result.pickupCode || result.pickup_code || order.pickupCode || order.pickup_code || '';
+      const pickupCode = escapeHtml(result.pickupCode || result.pickup_code || order.pickupCode || order.pickup_code || '');
 
       let instructionHTML = '';
 

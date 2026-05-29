@@ -17,7 +17,7 @@ INSERT OR IGNORE INTO users (email, password, role, name, points) VALUES
 ('kaohsiung-veg@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '苓雅食堂老闆', 0),
 ('kaohsiung-mix@test.com', '$2b$10$QiqCY26bosloW8kbfQbdzOFM3AlQksdxZJw.JDDcT/3OjDDPPI.iq', 'store_owner', '三民食堂老闆', 0);
 
--- 測試店家
+-- 測試店家 [L5 NOTE] user_id=2 同一店主擁有兩間店（僅為測試用，正式環境應禁止）
 INSERT OR IGNORE INTO stores (user_id, name, description, address, latitude, longitude, phone) VALUES
 (2, '阿美便當', '每日新鮮現做便當，用料實在', '台北市大安區忠孝東路四段100號', 25.0418, 121.5437, '02-27001234'),
 (2, '幸福麵包坊', '手工麵包，每日新鮮出爐', '台北市大安區復興南路一段200號', 25.0380, 121.5440, '02-27005678');

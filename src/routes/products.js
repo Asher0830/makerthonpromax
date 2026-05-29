@@ -106,7 +106,15 @@ products.post('/', requireAuth(), requireRole('store_owner'), async (c) => {
     const source = body.source;
     const description = body.description;
     const allergens = normalizeAllergens(body.allergens);
-    const expires_at = body.expires_at ?? body.expiresAt;
+    // [M15 FIX] 正規化日期格式為 SQLite 可比較的格式
+    let expires_at = body.expires_at ?? body.expiresAt;
+    if (expires_at) {
+        try {
+            expires_at = new Date(expires_at).toISOString().replace('T', ' ').replace('Z', '');
+        } catch (e) {
+            // 格式無法解析時保持原值
+        }
+    }
 
     // 驗證必填欄位
     if (!name || !category || original_price == null || selling_price == null || !source) {
@@ -199,8 +207,9 @@ products.get('/', async (c) => {
     let productsResult;
 
     if (source === 'map' && !isNaN(lat) && !isNaN(lng)) {
-        // 地圖模式：join stores，計算距離，依距離排序
-        const distanceExpr = `(sqrt((s.latitude - ${lat}) * (s.latitude - ${lat}) + (s.longitude - ${lng}) * (s.longitude - ${lng})) * 111)`;
+        // [M8 FIX] 加入 cos(lat) 修正經度距離
+        const cosLat = Math.cos(lat * Math.PI / 180);
+        const distanceExpr = `(sqrt((s.latitude - ${lat}) * (s.latitude - ${lat}) + (s.longitude - ${lng}) * (s.longitude - ${lng}) * ${cosLat} * ${cosLat}) * 111)`;
         const queryParams = [...params];
 
         if (hideExpired) {

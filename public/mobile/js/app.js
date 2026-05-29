@@ -2,6 +2,11 @@
    惜食救援 — Main Application & Router
    ============================================ */
 
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 // --- Hash Router ---
 class Router {
     constructor() {

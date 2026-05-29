@@ -2,6 +2,11 @@
    FoodD Tablet — Main Application (State Machine)
    ═══════════════════════════════════════════════════ */
 
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
 class TabletApp {
   constructor() {
     this.el = document.getElementById('app');
@@ -117,7 +122,7 @@ class TabletApp {
       <div class="status-bar">
         <div class="status-bar__left">
           <div class="status-bar__dot"></div>
-          <span class="status-bar__machine-name">${this.machineStatus.machineName}</span>
+          <span class="status-bar__machine-name">${escapeHtml(this.machineStatus.machineName)}</span>
         </div>
         <div class="status-bar__right">
           <span class="status-bar__temp">溫控 <span>${temp}</span></span>
@@ -155,7 +160,7 @@ class TabletApp {
       return `
         <div class="${cls}" ${clickHandler} style="${style}">
           <span class="compartment-slot__number">${c.number}</span>
-          ${(isStocked && c.productName) ? `<span class="compartment-slot__product">${c.productName}</span>` : ''}
+          ${(isStocked && c.productName) ? `<span class="compartment-slot__product">${escapeHtml(c.productName)}</span>` : ''}
           ${(isStocked && c.price) ? `<span class="compartment-slot__price" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); margin-top: 2px;">$${c.price}</span>` : ''}
         </div>`;
     }).join('');
@@ -416,7 +421,7 @@ class TabletApp {
     return slots.map((c, i) => `
       <div class="gacha-cell" id="gacha-cell-${c.number}" data-num="${c.number}">
         <span class="gacha-cell__emoji" style="color:var(--accent-gold); font-size: 2rem;">${markers[i % markers.length]}</span>
-        <span class="gacha-cell__name">${c.productName || `#${c.number}`}</span>
+        <span class="gacha-cell__name">${escapeHtml(c.productName) || `#${c.number}`}</span>
       </div>
     `).join('');
   }
@@ -433,8 +438,8 @@ class TabletApp {
         <div class="result-card">
           <div class="result-card__label">${isDirectPurchase ? '艙門編號' : '中獎格號'}</div>
           <div class="result-card__compartment"># ${r.compartment || '?'}</div>
-          <div class="result-card__product">${r.productName || '神秘美食'}</div>
-          ${r.category ? `<span class="result-card__category">${r.category}</span>` : ''}
+          <div class="result-card__product">${escapeHtml(r.productName) || '神秘美食'}</div>
+          ${r.category ? `<span class="result-card__category">${escapeHtml(r.category)}</span>` : ''}
           <div class="result-card__message">
             第 ${r.compartment || '?'} 號門已開啟，請取餐！
           </div>
@@ -469,7 +474,7 @@ class TabletApp {
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
         <div class="error-title" style="font-size: var(--fs-header); font-weight: 800; color: var(--accent-red);">系統異常</div>
-        <div class="error-message">${this.errorMessage || '發生未知錯誤'}</div>
+        <div class="error-message">${escapeHtml(this.errorMessage) || '發生未知錯誤'}</div>
         <button class="btn btn--primary" onclick="app.forceUnlock()">
           返回首頁
         </button>
@@ -653,7 +658,7 @@ class TabletApp {
   _generatePaymentQR() {
     const target = document.getElementById('qr-target');
     if (!target || !this.currentOrder) return;
-    const url = `http://10.71.71.65:3000/mobile/#/consumer/pay/${this.currentOrder.orderId}`;
+    const url = `${window.location.origin}/mobile/#/consumer/pay/${this.currentOrder.orderId}`;
     
     try {
       if (typeof QRCode !== 'undefined') {
@@ -679,7 +684,7 @@ class TabletApp {
   _generatePairQR() {
     const target = document.getElementById('pair-qr-target');
     if (!target) return;
-    const url = `http://10.71.71.65:3000/mobile/#/store/pair?token=${this.pairToken}`;
+    const url = `${window.location.origin}/mobile/#/store/pair?token=${this.pairToken}`;
     
     try {
       if (typeof QRCode !== 'undefined') {
@@ -721,6 +726,7 @@ class TabletApp {
     const totalDuration = expiresAt - Date.now();
 
     const tick = () => {
+      if (this.state !== 'WAITING_PAYMENT') { clearInterval(this._countdownTimer); return; }
       const remaining = Math.max(0, expiresAt - Date.now());
       const el = document.getElementById('payment-countdown');
       const fill = document.getElementById('countdown-fill');
@@ -802,8 +808,9 @@ class TabletApp {
   _runGachaAnimation() {
     const result = this.currentResult;
     if (!result) {
-      // Demo fallback
-      this.currentResult = { compartment: 3, productName: '日式炸雞便當', category: '便當' };
+      this.errorMessage = '無法取得抽獎結果';
+      this.setState('ERROR');
+      return;
     }
 
     const winnerNum = this.currentResult.compartment;

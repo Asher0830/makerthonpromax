@@ -45,7 +45,7 @@ async function renderStorePairPage() {
                     <div class="success-screen">
                         <div class="success-icon" style="font-size: 2.5rem; color: var(--primary-color); font-weight: 700; margin-bottom: 12px;">✓</div>
                         <h2 class="success-title">配對成功！</h2>
-                        <p style="color: var(--text-secondary, #666); margin-bottom: 24px;">${machineName}</p>
+                        <p style="color: var(--text-secondary, #666); margin-bottom: 24px;">${escapeHtml(machineName)}</p>
                         <button class="btn btn-primary btn-block" onclick="router.navigate('/store/machine/${machineId}')">管理機台</button>
                     </div>
                 </div>
@@ -63,7 +63,7 @@ async function renderStorePairPage() {
                     <div class="card" style="text-align: center; padding: 40px 20px;">
                         <div style="font-size: 2.5rem; color: #d32f2f; font-weight: 700; margin-bottom: 16px;">✕</div>
                         <h3 style="margin-bottom: 8px;">配對失敗</h3>
-                        <p style="color: var(--text-secondary, #666); margin-bottom: 24px;">${err.message || '請稍後再試'}</p>
+                        <p style="color: var(--text-secondary, #666); margin-bottom: 24px;">${escapeHtml(err.message) || '請稍後再試'}</p>
                         <button class="btn btn-primary btn-block" onclick="router.navigate('/store/pair')">重新嘗試</button>
                     </div>
                 </div>

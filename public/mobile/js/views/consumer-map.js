@@ -5,6 +5,10 @@
 /* Category helpers (getCategoryColor, getCategoryEmoji) are defined in app.js */
 
 async function renderConsumerMapPage() {
+  if (window._leafletMap) {
+    window._leafletMap.remove();
+    window._leafletMap = null;
+  }
   updateBottomNav('map');
 
   const html = `
@@ -67,6 +71,7 @@ async function renderConsumerMapPage() {
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     window._mapInstance = map;
+    window._leafletMap = map;
   }
 
   /* ── Geolocate user ── */
@@ -138,8 +143,8 @@ async function renderConsumerMapPage() {
 
       marker.bindPopup(`
         <div class="map-popup">
-          <div class="popup-title">${product.name || '惜食商品'}</div>
-          <div class="popup-store">${storeName}</div>
+          <div class="popup-title">${escapeHtml(product.name) || '惜食商品'}</div>
+          <div class="popup-store">${escapeHtml(storeName)}</div>
           <div class="popup-price">
             <span class="price-original">NT$${originalPrice}</span>
             <span class="price-selling">NT$${sellingPrice}</span>
@@ -186,11 +191,11 @@ async function renderConsumerMapPage() {
 
         marker.bindPopup(`
           <div class="map-popup">
-            <div class="popup-title">[機台] ${mac.name || '智慧惜食機'}</div>
-            <div class="popup-store">${mac.location_desc || '裝設位置'}</div>
-            <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-color); margin: 6px 0 10px 0;">狀態：${statusLabel}</div>
+            <div class="popup-title">[機台] ${escapeHtml(mac.name) || '智慧惜食機'}</div>
+            <div class="popup-store">${escapeHtml(mac.location_desc) || '裝設位置'}</div>
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-color); margin: 6px 0 10px 0;">狀態：${escapeHtml(statusLabel)}</div>
             <button class="btn btn-primary btn-sm popup-btn"
-                    onclick="router.navigate('/')">
+                    onclick="router.navigate('/consumer/scan')">
               前往機台/掃碼付款
             </button>
           </div>

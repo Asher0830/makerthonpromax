@@ -1,7 +1,7 @@
 /**
  * 機台指令佇列服務 (HTTP Polling 架構)
  * 
- * 取代原本的 MQTT 推送機制，改用伺服器端記憶體佇列 + ESP32 HTTP 輪詢。
+ * [H4 FIX] 指令佇列持久化至 SQLite，防止伺服器重啟（含 --watch 自動重啟）丟失開門指令。
  * ESP32 每秒呼叫 GET /api/v1/machines/:machineId/pop-command 來取得待執行指令。
  * 
  * 優勢：
@@ -9,31 +9,37 @@
  *   - 完美相容 Cloudflare Workers 部署（純 HTTP）
  *   - 防火牆友善（僅使用標準 HTTP/HTTPS Port）
  *   - ESP32 斷線自癒（重連後自動恢復輪詢，無需管理長連接）
+ *   - 指令持久化至 DB，伺服器重啟後不丟失
  */
 
-// 機台指令佇列：machineId → command[]
-const commandQueues = new Map();
+import { query, queryFirst, transaction } from '../db/connection.js';
+
+// 確保 pending_commands 表存在（首次 import 時建立）
+try {
+    query(`CREATE TABLE IF NOT EXISTS pending_commands (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        machine_id TEXT NOT NULL,
+        action TEXT NOT NULL DEFAULT 'OPEN',
+        door_index INTEGER NOT NULL,
+        request_id TEXT,
+        queued_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`);
+} catch (err) {
+    console.warn('[指令佇列] 建立 pending_commands 表時發生錯誤（可能已存在）:', err.message);
+}
 
 /**
- * 將開門指令推入指定機台的待執行佇列
+ * 將開門指令推入指定機台的待執行佇列（持久化至 SQLite）
  * @param {string} machineId - 機台 ID
  * @param {number} doorIndex - 艙位編號 (1~12)
  * @param {string} requestId - 訂單識別碼（用於 ESP32 日誌追蹤）
  * @returns {boolean} 是否成功推入
  */
 export async function sendOpenDoor(machineId, doorIndex, requestId) {
-    const command = {
-        action: 'OPEN',
-        door_index: doorIndex,
-        request_id: requestId,
-        queued_at: new Date().toISOString(),
-    };
-
-    if (!commandQueues.has(machineId)) {
-        commandQueues.set(machineId, []);
-    }
-
-    commandQueues.get(machineId).push(command);
+    query(
+        `INSERT INTO pending_commands (machine_id, action, door_index, request_id, queued_at) VALUES (?, 'OPEN', ?, ?, datetime('now'))`,
+        [machineId, doorIndex, requestId]
+    );
 
     console.log(`[指令佇列] 已推入開門指令 → 機台: ${machineId}, 艙位: ${doorIndex}, 訂單: ${requestId}`);
     return true;
@@ -46,12 +52,21 @@ export async function sendOpenDoor(machineId, doorIndex, requestId) {
  * @returns {object|null} 指令物件，或 null（無待執行指令）
  */
 export function popCommand(machineId) {
-    const queue = commandQueues.get(machineId);
-    if (!queue || queue.length === 0) {
-        return null;
+    // 使用 transaction 確保 SELECT + DELETE 原子性
+    const command = transaction(() => {
+        const cmd = queryFirst(
+            `SELECT id, action, door_index, request_id, queued_at FROM pending_commands WHERE machine_id = ? ORDER BY id ASC LIMIT 1`,
+            [machineId]
+        );
+        if (!cmd) return null;
+
+        query(`DELETE FROM pending_commands WHERE id = ?`, [cmd.id]);
+        return cmd;
+    });
+
+    if (command) {
+        console.log(`[指令佇列] 已彈出指令 → 機台: ${machineId}, 動作: ${command.action}, 艙位: ${command.door_index}`);
     }
-    const command = queue.shift();
-    console.log(`[指令佇列] 已彈出指令 → 機台: ${machineId}, 動作: ${command.action}, 艙位: ${command.door_index}`);
     return command;
 }
 
@@ -61,8 +76,11 @@ export function popCommand(machineId) {
  * @returns {number} 待執行指令數
  */
 export function getQueueLength(machineId) {
-    const queue = commandQueues.get(machineId);
-    return queue ? queue.length : 0;
+    const row = queryFirst(
+        `SELECT COUNT(*) as cnt FROM pending_commands WHERE machine_id = ?`,
+        [machineId]
+    );
+    return row ? row.cnt : 0;
 }
 
 // 保留 publishMQTT 的相容介面（若有其他模組呼叫）

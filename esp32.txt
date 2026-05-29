@@ -5,21 +5,23 @@
 #include <ESP32Servo.h>
 
 // ==================== 網路與 API 設定 ====================
-const char* ssid = "COM";           
-const char* password = "02220222";   
+const char* ssid = "COM";            // [DEMO] Production: use NVS/EEPROM
+const char* password = "02220222";    // [DEMO] Production: use NVS/EEPROM
 
 // [單一配置點] 伺服器 IP 位址（開發用，部署後改為 Cloudflare 網址）
 const char* serverHost = "10.71.71.65"; 
 
 // API 端點（自動基於伺服器 IP 動態生成）
+// [M2] Global String concatenation is acceptable for ESP32 with PSRAM in demo firmware.
+// For production on memory-constrained boards, consider converting to char arrays.
 const String baseUrl = "http://" + String(serverHost) + ":3000/api/v1/machines";
 const String triggerUrl = baseUrl + "/trigger"; 
 const String machineId = "MAC_01A2B3";
 const String telemetryUrl = baseUrl + "/" + machineId + "/telemetry";
 const String popCommandUrl = baseUrl + "/" + machineId + "/pop-command?secret_key=sec_01a2b3";
 const String completeUrl = baseUrl + "/" + machineId + "/complete";
-const String triggerSecret = "dev_secret_key_001";
-const String telemetrySecret = "sec_01a2b3";
+const String triggerSecret = "dev_secret_key_001";   // [DEMO] Production: use NVS/EEPROM
+const String telemetrySecret = "sec_01a2b3";          // [DEMO] Production: use NVS/EEPROM
 
 // ==================== 硬體腳位與參數設定 ====================
 #define ENCODER_CLK  4
@@ -38,12 +40,17 @@ const int LATCH_LOCKED = 0;
 const int LATCH_UNLOCKED = 90;                 
 
 volatile int encoderTicks = 0;                 
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED; // [M1] Critical section for ISR shared variables
 int lastClkState;
 const int TICKS_TO_TRIGGER = 20;               
 
 enum SystemState { STATE_IDLE, STATE_SPINNING, STATE_WAITING_API, STATE_DOOR_WAITING_CLOSE };
 volatile SystemState currentState = STATE_IDLE;
 volatile int activeDoorIndex = -1; 
+
+unsigned long doorOpenedAt = 0;                  // [C3] Timestamp when door opened
+unsigned long lastReconnectAttempt = 0;          // [C2] WiFi reconnection tracking
+bool pendingComplete = false;                    // [H5] Retry flag for reportComplete
 
 unsigned long lastDHTReadTime = 0;
 unsigned long lastTelemetryTime = 0;
@@ -64,8 +71,10 @@ void IRAM_ATTR handleEncoderInterrupt() {
   int clkState = digitalRead(ENCODER_CLK);
   int dtState = digitalRead(ENCODER_DT);
   if (clkState != lastClkState && clkState == LOW) {
+    portENTER_CRITICAL_ISR(&mux); // [M1] Protect shared variable
     if (dtState != clkState) encoderTicks++; 
     if (encoderTicks < 0) encoderTicks = 0;
+    portEXIT_CRITICAL_ISR(&mux);
   }
   lastClkState = clkState;
 }
@@ -96,6 +105,7 @@ void openDoor(int physicalDoorIndex) {
   cabinetLatches[arrayIndex].write(LATCH_UNLOCKED); 
   
   activeDoorIndex = arrayIndex;
+  doorOpenedAt = millis(); // [C3] Record when door opened for timeout
   currentState = STATE_DOOR_WAITING_CLOSE;
   
   Serial.println("[狀態] 等待使用者取餐並推回艙門...");
@@ -117,7 +127,7 @@ void pollForCommands() {
   if (httpCode == 200) {
     String response = http.getString();
     
-    StaticJsonDocument<512> doc;
+    StaticJsonDocument<1024> doc; // [M3] Increased from 512 to handle larger payloads
     DeserializationError error = deserializeJson(doc, response);
 
     if (error) {
@@ -170,8 +180,9 @@ void pollForCommands() {
 }
 
 // ==================== 回報出餐完成 ====================
-void reportComplete() {
-  if (WiFi.status() != WL_CONNECTED) return;
+// [H5] Returns true on success, false on failure (caller sets pendingComplete)
+bool reportComplete() {
+  if (WiFi.status() != WL_CONNECTED) return false;
 
   HTTPClient http;
   http.begin(completeUrl);
@@ -182,10 +193,13 @@ void reportComplete() {
   
   if (httpCode == 200) {
     Serial.println("[出餐完成] 已通知伺服器，機台狀態重設為 IDLE");
+    http.end();
+    return true;
   } else {
     Serial.printf("[出餐完成] 通知失敗，代碼: %d\n", httpCode);
+    http.end();
+    return false;
   }
-  http.end();
 }
 
 // ==================== 初始化設定 ====================
@@ -194,11 +208,19 @@ void setup() {
   
   Serial.print("\n連線至 WiFi...");
   WiFi.begin(ssid, password);
+  // [C1] WiFi connection with retry counter to avoid infinite hang
+  int wifiRetries = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
+    wifiRetries++;
+    if (wifiRetries >= 30) { // 30 attempts × 500ms = 15 seconds max
+      Serial.println("\n[致命錯誤] WiFi 連線逾時，系統重啟...");
+      ESP.restart();
+    }
   }
   Serial.println("\n[系統] WiFi 連線成功！IP: " + WiFi.localIP().toString());
+  WiFi.setAutoReconnect(true); // [C2] Enable auto-reconnection
 
   // 初始化編碼器
   pinMode(ENCODER_CLK, INPUT_PULLUP);
@@ -233,6 +255,25 @@ void setup() {
 
 // ==================== 主程式迴圈 ====================
 void loop() {
+
+  // [C2] WiFi reconnection check
+  if (WiFi.status() != WL_CONNECTED) {
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt > 10000) { // Try every 10 seconds
+      lastReconnectAttempt = now;
+      Serial.println("[網路] WiFi 斷線，嘗試重新連線...");
+      WiFi.reconnect();
+      delay(500); // Brief wait for reconnection
+    }
+  }
+
+  // [H5] Retry pending reportComplete if previous attempt failed
+  if (pendingComplete && currentState == STATE_IDLE) {
+    if (reportComplete()) {
+      pendingComplete = false;
+      Serial.println("[H5] 補送出餐完成通知成功");
+    }
+  }
   
   // 0. HTTP 輪詢：每秒向伺服器查詢是否有開門指令（取代 MQTT）
   if (millis() - lastPollTime > POLL_INTERVAL) {
@@ -281,20 +322,35 @@ void loop() {
       if (activeDoorIndex != -1) {
           delay(300);
           cabinetLatches[activeDoorIndex].detach();
-          activeDoorIndex = -1;
           Serial.println("[狀態] 關門完成，已徹底上鎖並回到待機狀態。");
 
+          // [M4] Set activeDoorIndex = -1 BEFORE reportComplete to prevent duplicate calls
+          activeDoorIndex = -1;
+
           // 通知伺服器出餐完成，重設機台為 IDLE
-          reportComplete();
+          // [H5] If reportComplete fails, set pendingComplete for retry
+          if (!reportComplete()) {
+            pendingComplete = true;
+            Serial.println("[H5] 出餐完成通知失敗，稍後重試");
+          }
       }
     
-      if (encoderTicks > 0) {
-        currentState = STATE_SPINNING;
+      { // [M1] Critical section to read shared ISR variable
+        portENTER_CRITICAL(&mux);
+        int ticks = encoderTicks;
+        portEXIT_CRITICAL(&mux);
+        if (ticks > 0) {
+          currentState = STATE_SPINNING;
+        }
       }
       break;
       
-    case STATE_SPINNING:
-      if (encoderTicks >= TICKS_TO_TRIGGER) {
+    case STATE_SPINNING: {
+      // [M1] Critical section to read shared ISR variable
+      portENTER_CRITICAL(&mux);
+      int localTicks = encoderTicks;
+      portEXIT_CRITICAL(&mux);
+      if (localTicks >= TICKS_TO_TRIGGER) {
         currentState = STATE_WAITING_API; 
         Serial.println("\n[觸發] 轉數達標！向伺服器發送抽獎 HTTP 請求...");
         
@@ -333,12 +389,28 @@ void loop() {
           encoderTicks = 0;
           currentState = STATE_IDLE;
         }
-      } else if (encoderTicks == 0) {
+      } else if (localTicks == 0) {
         currentState = STATE_IDLE;
       }
-      break;
+      } break; // end STATE_SPINNING
       
     case STATE_DOOR_WAITING_CLOSE:
+      // [C3] Timeout: if door open > 60 seconds, force-lock and return to IDLE
+      if (millis() - doorOpenedAt > 60000) {
+        Serial.println("[C3 逾時] 艙門開啟超過 60 秒，強制上鎖！");
+        if (activeDoorIndex >= 0 && activeDoorIndex < NUM_DOORS) {
+          cabinetLatches[activeDoorIndex].attach(servoPins[activeDoorIndex]);
+          cabinetLatches[activeDoorIndex].write(LATCH_LOCKED);
+        }
+        door1CloseTriggered = false;
+        door2CloseTriggered = false;
+        currentState = STATE_IDLE;
+        // [H5] Report complete on forced timeout too
+        if (!reportComplete()) {
+          pendingComplete = true;
+        }
+        break;
+      }
       if (activeDoorIndex == 0 && door1CloseTriggered) {
         door1CloseTriggered = false;
         Serial.println("[安全機制] 偵測到 1 號門已推回關閉，正在驅動伺服上鎖...");

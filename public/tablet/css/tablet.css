@@ -39,6 +39,8 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+  --radius-pill: 32px;
+  --accent-light: rgba(0, 128, 85, 0.06);
 
   /* Shadows */
   --shadow-glow-green: none;

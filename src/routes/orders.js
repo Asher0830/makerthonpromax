@@ -22,22 +22,23 @@ orders.post('/map', requireAuth(), async (c) => {
         return error(c, 'MISSING_FIELDS', '請提供 product_id');
     }
 
-    // 驗證商品存在、可購買、且來源為 map
-    const product = queryFirst(
-        `SELECT p.*, s.id as store_id, s.name as store_name
-         FROM products p
-         JOIN stores s ON p.store_id = s.id
-         WHERE p.id = ? AND p.status = 'AVAILABLE' AND p.source = 'map'`,
-        [product_id]
-    );
-
-    if (!product) {
-        return error(c, 'PRODUCT_NOT_AVAILABLE', '商品不存在、已售出、或非地圖導購商品', 400);
-    }
-
     const timeoutAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    const orderId = transaction(() => {
+    // [H3 FIX] TOCTOU: 將商品狀態檢查移入 transaction 內，防止並發重複下單
+    const result = transaction(() => {
+        // 在 transaction 內重新查詢商品狀態
+        const product = queryFirst(
+            `SELECT p.*, s.id as store_id, s.name as store_name
+             FROM products p
+             JOIN stores s ON p.store_id = s.id
+             WHERE p.id = ? AND p.status = 'AVAILABLE' AND p.source = 'map'`,
+            [product_id]
+        );
+
+        if (!product) {
+            return { error: 'PRODUCT_NOT_AVAILABLE' };
+        }
+
         const orderResult = query(
             `INSERT INTO orders (user_id, order_type, store_id, product_id, amount, status, timeout_at)
              VALUES (?, 'map_purchase', ?, ?, ?, 'PENDING', ?)` ,
@@ -52,8 +53,14 @@ orders.post('/map', requireAuth(), async (c) => {
             [product_id]
         );
 
-        return createdOrderId;
+        return { orderId: createdOrderId, product };
     });
+
+    if (result.error) {
+        return error(c, 'PRODUCT_NOT_AVAILABLE', '商品不存在、已售出、或非地圖導購商品', 400);
+    }
+
+    const { orderId, product } = result;
 
     return success(c, {
         order: {

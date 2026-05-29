@@ -117,10 +117,7 @@ payment.post('/mock/pay', async (c) => {
                 `UPDATE machines SET status = 'DISPENSING', active_order_id = ? WHERE id = ?`,
                 [order_id, order.machine_id]
             );
-            dbQuery(
-                `UPDATE compartments SET status = 'RESERVED' WHERE id = ?`,
-                [comp.compartment_id]
-            );
+            // [M6 FIX] 艙位已在 purchase/start 時 RESERVED，直接 dispense
             dispenseCompartment(comp.compartment_id);
             if (order.user_id) {
                 awardPoints(order.user_id, points);
@@ -285,7 +282,10 @@ payment.post('/mock/pay-and-dispense', async (c) => {
         dbQuery(`UPDATE compartments SET status = 'RESERVED' WHERE id = ?`, [won.compartment_id]);
         dispenseCompartment(won.compartment_id);
 
-        awardPoints(freshOrder.user_id, points);
+        // [M16 FIX] null userId 防護
+        if (freshOrder.user_id) {
+            awardPoints(freshOrder.user_id, points);
+        }
 
         dbQuery(`UPDATE products SET status = 'SOLD', updated_at = datetime('now') WHERE id = ?`, [won.product_id]);
     });

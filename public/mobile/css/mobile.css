@@ -649,6 +649,7 @@ button { font-family: inherit; }
 .toast-success { background: var(--success); }
 .toast-error { background: var(--danger); }
 .toast-info { background: var(--info); }
+.toast-warning { background: #f57c00; }
 
 @keyframes slideDown {
     from { transform: translateY(-100%); opacity: 0; }

@@ -50,8 +50,8 @@ async function start() {
             SET status = 'STOCKED'
             WHERE status = 'RESERVED'
               AND (
-                  -- 只有對應訂單已結束才釋放
-                  compartment_id NOT IN (
+                  -- 只有對應訂單已結束才釋放 [M5 FIX] 使用正確欄位名 compartments.id
+                  id NOT IN (
                       SELECT compartment_id FROM orders
                       WHERE compartment_id IS NOT NULL
                         AND status NOT IN ('COMPLETED', 'CANCELLED', 'TIMEOUT_REFUNDED')

@@ -2,6 +2,8 @@
    FoodD Mobile — Consumer Home Page
    ═══════════════════════════════════════════════════ */
 
+const DEFAULT_MACHINE_ID = 'MAC_01A2B3';
+
 async function renderConsumerHomePage() {
   updateBottomNav('home');
   showLoading();
@@ -13,7 +15,7 @@ async function renderConsumerHomePage() {
   // 獲取機台 MAC_01A2B3 的狀態以取得即時溫度與濕度
   let machineStatus = null;
   try {
-    machineStatus = await api.getMachine('MAC_01A2B3');
+    machineStatus = await api.getMachine(DEFAULT_MACHINE_ID);
   } catch (err) {
     console.warn('[Home] Failed to load machine status', err);
   }
@@ -56,7 +58,7 @@ async function renderConsumerHomePage() {
     <div class="page-content" style="padding: 24px 16px;">
       <!-- Greeting Section -->
       <div style="margin-bottom: 24px;">
-        <h2 style="font-size: 1.6rem; font-weight: 800; color: var(--text); line-height: 1.2; letter-spacing: -0.5px;">哈囉，${userName}</h2>
+        <h2 style="font-size: 1.6rem; font-weight: 800; color: var(--text); line-height: 1.2; letter-spacing: -0.5px;">哈囉，${escapeHtml(userName)}</h2>
         <p style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px;">用驚喜與美味，拯救每一份即期惜食。</p>
       </div>
 
@@ -65,7 +67,7 @@ async function renderConsumerHomePage() {
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <span style="font-size: 0.75rem; font-weight: 700; background: var(--primary); color: #fff; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.5px;">LIVE</span>
-            <span style="font-size: 0.9rem; font-weight: 700; color: var(--text);">智慧惜食機 MAC_01A2B3</span>
+            <span style="font-size: 0.9rem; font-weight: 700; color: var(--text);">智慧惜食機 ${escapeHtml(DEFAULT_MACHINE_ID)}</span>
           </div>
           <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary);">${statusLabel}</span>
         </div>
@@ -135,7 +137,7 @@ async function renderConsumerHomePage() {
       return;
     }
     try {
-      const updatedStatus = await api.getMachine('MAC_01A2B3');
+      const updatedStatus = await api.getMachine(DEFAULT_MACHINE_ID);
       if (updatedStatus && updatedStatus.last_telemetry) {
         const tEl = document.getElementById('home-temp');
         const hEl = document.getElementById('home-humidity');
