@@ -122,3 +122,5 @@ start().catch((err) => {
     console.error('[ERR] 啟動失敗:', err);
     process.exit(1);
 });
+
+// Trigger watch reload to refresh loaded SQLite database from disk
