@@ -117,7 +117,6 @@ void openDoor(int physicalDoorIndex, String cmdType = "PURCHASE") {
   // 保存當前命令類型以利燈條動畫呈現
   currentCommandType = cmdType;
   
-  cabinetLatches[arrayIndex].attach(servoPins[arrayIndex]);
   cabinetLatches[arrayIndex].write(LATCH_UNLOCKED); 
   
   activeDoorIndex = arrayIndex;
@@ -125,9 +124,6 @@ void openDoor(int physicalDoorIndex, String cmdType = "PURCHASE") {
   currentState = STATE_DOOR_WAITING_CLOSE;
   
   Serial.println("[狀態] 等待使用者取餐並推回艙門...");
-  
-  delay(300);
-  cabinetLatches[arrayIndex].detach(); 
 }
 
 // ==================== HTTP 輪詢：取得伺服器開門指令 ====================
@@ -254,11 +250,10 @@ void setup() {
 
   dht.begin();
   
+  // 將伺服馬達永久連接以避免動態分配引起的訊號干擾與雙開門問題
   for (int i = 0; i < NUM_DOORS; i++) {
     cabinetLatches[i].attach(servoPins[i]);
     cabinetLatches[i].write(LATCH_LOCKED);
-    delay(150);
-    cabinetLatches[i].detach(); 
   }
 
   // 初始化 WS2812 燈條
@@ -341,11 +336,9 @@ void loop() {
   // 3. 狀態機與抽獎觸發邏輯
   switch (currentState) {
     case STATE_IDLE:
-      // 確保關門後徹底釋放馬達 PWM
+      // 確保關門後已回到待機狀態，無需動態釋放以維持硬體 PWM 隔離
       if (activeDoorIndex != -1) {
-          delay(300);
-          cabinetLatches[activeDoorIndex].detach();
-          Serial.println("[狀態] 關門完成，已徹底上鎖並回到待機狀態。");
+          Serial.println("[狀態] 關門完成，已上鎖並回到待機狀態。");
 
           // [M4] Set activeDoorIndex = -1 BEFORE reportComplete to prevent duplicate calls
           activeDoorIndex = -1;
@@ -422,7 +415,6 @@ void loop() {
       if (millis() - doorOpenedAt > 60000) {
         Serial.println("[C3 逾時] 艙門開啟超過 60 秒，強制上鎖！");
         if (activeDoorIndex >= 0 && activeDoorIndex < NUM_DOORS) {
-          cabinetLatches[activeDoorIndex].attach(servoPins[activeDoorIndex]);
           cabinetLatches[activeDoorIndex].write(LATCH_LOCKED);
         }
         door1CloseTriggered = false;
@@ -437,14 +429,12 @@ void loop() {
       if (activeDoorIndex == 0 && door1CloseTriggered) {
         door1CloseTriggered = false;
         Serial.println("[安全機制] 偵測到 1 號門已推回關閉，正在驅動伺服上鎖...");
-        cabinetLatches[0].attach(servoPins[0]);
         cabinetLatches[0].write(LATCH_LOCKED);
         currentState = STATE_IDLE;
       }
       else if (activeDoorIndex == 1 && door2CloseTriggered) {
         door2CloseTriggered = false;
         Serial.println("[安全機制] 偵測到 2 號門已推回關閉，正在驅動伺服上鎖...");
-        cabinetLatches[1].attach(servoPins[1]);
         cabinetLatches[1].write(LATCH_LOCKED);
         currentState = STATE_IDLE;
       }
