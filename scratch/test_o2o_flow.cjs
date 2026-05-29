@@ -128,7 +128,11 @@ async function runTest() {
         headers: { 'Authorization': `Bearer ${token}` }
     });
     let meJson = await meRes.json();
-    console.log(`✅ 驗證成功！會員最新點數：${meJson.data.user.points} 點！`);
+    // 6. 強制完成訂單將狀態重設回 IDLE
+    console.log('\n[步驟 6] 發送完成訂單 API 重設機台狀態為 IDLE...');
+    await fetch(`${baseUrl}/machines/MAC_01A2B3/complete`, { method: 'POST' });
+    console.log('✅ 機台已重設為 IDLE，測試流程全數圓滿落幕！');
+
     console.log('\n🎉 O2O 扭蛋付款與會員登入綁定流程全部測試通過！');
 }
 
