@@ -133,7 +133,7 @@ void openDoor(int physicalDoorIndex, String cmdType = "PURCHASE") {
 // ==================== HTTP 輪詢：取得伺服器開門指令 ====================
 void pollForCommands() {
   if (WiFi.status() != WL_CONNECTED) return;
-  if (currentState != STATE_IDLE) return; // 只有閒置時才接受開門指令
+  if (currentState != STATE_IDLE && currentState != STATE_SPINNING) return; // 只有閒置或轉動中才接受開門指令
 
   HTTPClient http;
   http.begin(popCommandUrl);
@@ -301,7 +301,7 @@ void loop() {
   // 0. HTTP 輪詢：每秒向伺服器查詢是否有開門指令（取代 MQTT）
   if (millis() - lastPollTime > POLL_INTERVAL) {
     lastPollTime = millis();
-    if (WiFi.status() == WL_CONNECTED && currentState == STATE_IDLE) {
+    if (WiFi.status() == WL_CONNECTED && (currentState == STATE_IDLE || currentState == STATE_SPINNING)) {
       pollForCommands();
     }
   }
