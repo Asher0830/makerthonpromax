@@ -61,7 +61,7 @@ export function getFilteredPool(machineId, excludedAllergens = [], category = nu
 
     return {
         pool: currentPool,
-        avgPrice: Math.round(avgPrice * 100) / 100
+        avgPrice: Math.round(avgPrice)
     };
 }
 

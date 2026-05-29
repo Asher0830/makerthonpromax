@@ -329,11 +329,30 @@ class TabletApp {
 
   _gachaCells() {
     const markers = ['✦', '✧', '✦', '✧', '✦', '✧'];
-    const slots = this.machineStatus.compartments.length
-      ? this.machineStatus.compartments
-      : Array.from({ length: 6 }, (_, i) => ({
-          number: i + 1, status: 'stocked', productName: `品項 ${i + 1}`,
-        }));
+    let slots = this.machineStatus.compartments || [];
+    
+    // Filter to only include stocked items
+    slots = slots.filter(c => c.status === 'stocked');
+    
+    // Filter by selected category
+    if (this.selectedCategory) {
+      slots = slots.filter(c => c.category === this.selectedCategory);
+    }
+    
+    // Filter by excluded allergens
+    if (this.excludedAllergens && this.excludedAllergens.size > 0) {
+      slots = slots.filter(c => {
+        const allergens = c.allergens || [];
+        return !allergens.some(a => this.excludedAllergens.has(a));
+      });
+    }
+
+    // Fallback if empty (should not happen in real flow due to button disable)
+    if (!slots.length) {
+      slots = Array.from({ length: 6 }, (_, i) => ({
+        number: i + 1, status: 'stocked', productName: `品項 ${i + 1}`,
+      }));
+    }
 
     return slots.map((c, i) => `
       <div class="gacha-cell" id="gacha-cell-${c.number}" data-num="${c.number}">
