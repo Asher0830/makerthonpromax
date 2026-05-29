@@ -65,10 +65,11 @@ class TabletAPI {
       price: c.selling_price || 0,
       category: c.category || '',
       allergens: c.allergens || [],
+      productStatus: (c.product_status || '').toLowerCase(),
     }));
 
     // Calculate average price of stocked items
-    const stocked = compartments.filter(c => c.status === 'stocked');
+    const stocked = compartments.filter(c => c.status === 'stocked' && (!c.productStatus || c.productStatus === 'available'));
     const avgPrice = stocked.length > 0
       ? Math.round(stocked.reduce((sum, c) => sum + c.price, 0) / stocked.length)
       : 0;

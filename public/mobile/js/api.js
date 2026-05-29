@@ -53,7 +53,7 @@ class ApiClient {
     register(data) { return this.request('POST', '/api/v1/auth/register', data); }
 
     // Stores
-    getStores() { return this.request('GET', '/api/v1/stores/nearby?lat=25.04&lng=121.54&radius=10'); }
+    getStores() { return this.request('GET', '/api/v1/stores/nearby?lat=22.6855&lng=120.3028&radius=10'); }
     getStore(id) { return this.request('GET', `/api/v1/stores/${id}`); }
     getMyStore() { return this.request('GET', '/api/v1/stores/me'); }
     createStore(data) { return this.request('POST', '/api/v1/stores', data); }

@@ -1,0 +1,358 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <DHT.h>
+#include <ESP32Servo.h>
+
+// ==================== 網路與 API 設定 ====================
+const char* ssid = "COM";           
+const char* password = "02220222";   
+
+// [單一配置點] 伺服器 IP 位址（開發用，部署後改為 Cloudflare 網址）
+const char* serverHost = "10.71.71.65"; 
+
+// API 端點（自動基於伺服器 IP 動態生成）
+const String baseUrl = "http://" + String(serverHost) + ":3000/api/v1/machines";
+const String triggerUrl = baseUrl + "/trigger"; 
+const String machineId = "MAC_01A2B3";
+const String telemetryUrl = baseUrl + "/" + machineId + "/telemetry";
+const String popCommandUrl = baseUrl + "/" + machineId + "/pop-command?secret_key=sec_01a2b3";
+const String completeUrl = baseUrl + "/" + machineId + "/complete";
+const String triggerSecret = "dev_secret_key_001";
+const String telemetrySecret = "sec_01a2b3";
+
+// ==================== 硬體腳位與參數設定 ====================
+#define ENCODER_CLK  4
+#define ENCODER_DT   5
+#define ENCODER_SW   6
+#define DHT_PIN      7
+#define DHT_TYPE     DHT22
+#define DOOR1_BTN_PIN 10
+#define DOOR2_BTN_PIN 11
+
+const int NUM_DOORS = 2;                       
+int servoPins[NUM_DOORS] = {8, 9};             
+Servo cabinetLatches[NUM_DOORS];
+
+const int LATCH_LOCKED = 0;                    
+const int LATCH_UNLOCKED = 90;                 
+
+volatile int encoderTicks = 0;                 
+int lastClkState;
+const int TICKS_TO_TRIGGER = 20;               
+
+enum SystemState { STATE_IDLE, STATE_SPINNING, STATE_WAITING_API, STATE_DOOR_WAITING_CLOSE };
+volatile SystemState currentState = STATE_IDLE;
+volatile int activeDoorIndex = -1; 
+
+unsigned long lastDHTReadTime = 0;
+unsigned long lastTelemetryTime = 0;
+unsigned long lastPollTime = 0;
+const unsigned long TELEMETRY_INTERVAL = 10000;  // 遙測上報間隔：10 秒
+const unsigned long POLL_INTERVAL = 1000;        // HTTP 輪詢間隔：1 秒
+float currentTemp = 0.0;
+float currentHum = 0.0;
+
+DHT dht(DHT_PIN, DHT_TYPE);
+WiFiClient espClient;
+
+// ==================== 中斷服務程式 (ISR) ====================
+
+void IRAM_ATTR handleEncoderInterrupt() {
+  if (currentState != STATE_IDLE && currentState != STATE_SPINNING) return;
+  
+  int clkState = digitalRead(ENCODER_CLK);
+  int dtState = digitalRead(ENCODER_DT);
+  if (clkState != lastClkState && clkState == LOW) {
+    if (dtState != clkState) encoderTicks++; 
+    if (encoderTicks < 0) encoderTicks = 0;
+  }
+  lastClkState = clkState;
+}
+
+volatile bool door1CloseTriggered = false;
+volatile bool door2CloseTriggered = false;
+
+void IRAM_ATTR handleDoor1Close() {
+  if (currentState == STATE_DOOR_WAITING_CLOSE && activeDoorIndex == 0) {
+    door1CloseTriggered = true;
+  }
+}
+
+void IRAM_ATTR handleDoor2Close() {
+  if (currentState == STATE_DOOR_WAITING_CLOSE && activeDoorIndex == 1) {
+    door2CloseTriggered = true;
+  }
+}
+
+// ==================== 封裝安全開門函式 ====================
+void openDoor(int physicalDoorIndex) {
+  int arrayIndex = physicalDoorIndex - 1; 
+  if (arrayIndex < 0 || arrayIndex >= NUM_DOORS) return;
+
+  Serial.printf("[機構動作] 驅動 %d 號實體艙門伺服馬達彈開\n", physicalDoorIndex);
+  
+  cabinetLatches[arrayIndex].attach(servoPins[arrayIndex]);
+  cabinetLatches[arrayIndex].write(LATCH_UNLOCKED); 
+  
+  activeDoorIndex = arrayIndex;
+  currentState = STATE_DOOR_WAITING_CLOSE;
+  
+  Serial.println("[狀態] 等待使用者取餐並推回艙門...");
+  
+  delay(300);
+  cabinetLatches[arrayIndex].detach(); 
+}
+
+// ==================== HTTP 輪詢：取得伺服器開門指令 ====================
+void pollForCommands() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  if (currentState != STATE_IDLE) return; // 只有閒置時才接受開門指令
+
+  HTTPClient http;
+  http.begin(popCommandUrl);
+  http.setTimeout(3000);  // 3 秒超時，避免阻塞主迴圈
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    
+    StaticJsonDocument<512> doc;
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (error) {
+      Serial.print("[錯誤] HTTP 輪詢 JSON 解析失敗: ");
+      Serial.println(error.c_str());
+      http.end();
+      return;
+    }
+
+    // 回傳格式: { "success": true, "data": { "action": "OPEN", "door_index": 1, "request_id": "order_123" } }
+    const char* action = doc["data"]["action"];
+
+    if (action && String(action) == "OPEN") {
+      int wonCompartment = doc["data"]["door_index"];
+      const char* request_id = doc["data"]["request_id"];
+
+      Serial.printf("\n[HTTP 輪詢] 收到開門指令！艙位: %d (訂單: %s)\n", wonCompartment, request_id ? request_id : "N/A");
+      
+      // 虛擬艙位(1~12) 映射到實體艙門(1~2) 邏輯
+      int physicalDoor = 1; 
+      if (wonCompartment >= 1 && wonCompartment <= 6) {
+        physicalDoor = 1;
+      } else if (wonCompartment >= 7 && wonCompartment <= 12) {
+        physicalDoor = 2;
+      } else {
+        Serial.println("[警告] 收到未知的艙位號碼，預設開啟 1 號門保護機制！");
+        physicalDoor = 1; 
+      }
+      
+      openDoor(physicalDoor);
+    }
+    // action == "NONE" → 無指令，靜默繼續
+  } else if (httpCode > 0) {
+    // 非 200 但有回應（如 404、403 等），偶爾印出以利除錯
+    static unsigned long lastErrLog = 0;
+    if (millis() - lastErrLog > 30000) { // 每 30 秒最多印一次錯誤
+      Serial.printf("[HTTP 輪詢] 伺服器回應代碼: %d\n", httpCode);
+      lastErrLog = millis();
+    }
+  } else {
+    // 連線失敗（-1 等），偶爾印出
+    static unsigned long lastConnErrLog = 0;
+    if (millis() - lastConnErrLog > 30000) {
+      Serial.printf("[HTTP 輪詢] 連線失敗，錯誤碼: %d\n", httpCode);
+      lastConnErrLog = millis();
+    }
+  }
+
+  http.end();
+}
+
+// ==================== 回報出餐完成 ====================
+void reportComplete() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  http.begin(completeUrl);
+  http.addHeader("Content-Type", "application/json");
+  http.setTimeout(3000);
+  
+  int httpCode = http.POST("{}");
+  
+  if (httpCode == 200) {
+    Serial.println("[出餐完成] 已通知伺服器，機台狀態重設為 IDLE");
+  } else {
+    Serial.printf("[出餐完成] 通知失敗，代碼: %d\n", httpCode);
+  }
+  http.end();
+}
+
+// ==================== 初始化設定 ====================
+void setup() {
+  Serial.begin(115200);
+  
+  Serial.print("\n連線至 WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\n[系統] WiFi 連線成功！IP: " + WiFi.localIP().toString());
+
+  // 初始化編碼器
+  pinMode(ENCODER_CLK, INPUT_PULLUP);
+  pinMode(ENCODER_DT, INPUT_PULLUP);
+  pinMode(ENCODER_SW, INPUT_PULLUP);
+  lastClkState = digitalRead(ENCODER_CLK);
+  attachInterrupt(digitalPinToInterrupt(ENCODER_CLK), handleEncoderInterrupt, CHANGE);
+  
+  // 初始化微動開關
+  pinMode(DOOR1_BTN_PIN, INPUT_PULLUP);
+  pinMode(DOOR2_BTN_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(DOOR1_BTN_PIN), handleDoor1Close, FALLING);
+  attachInterrupt(digitalPinToInterrupt(DOOR2_BTN_PIN), handleDoor2Close, FALLING);
+
+  dht.begin();
+  
+  for (int i = 0; i < NUM_DOORS; i++) {
+    cabinetLatches[i].attach(servoPins[i]);
+    cabinetLatches[i].write(LATCH_LOCKED);
+    delay(150);
+    cabinetLatches[i].detach(); 
+  }
+  
+  Serial.println("==================================================");
+  Serial.println(" 聯網實體冷藏櫃 初始化完畢 (HTTP 輪詢架構)");
+  Serial.println("==================================================");
+  Serial.printf(" 伺服器: %s\n", serverHost);
+  Serial.printf(" 機台 ID: %s\n", machineId.c_str());
+  Serial.printf(" 輪詢間隔: %lu ms\n", POLL_INTERVAL);
+  Serial.println("==================================================");
+}
+
+// ==================== 主程式迴圈 ====================
+void loop() {
+  
+  // 0. HTTP 輪詢：每秒向伺服器查詢是否有開門指令（取代 MQTT）
+  if (millis() - lastPollTime > POLL_INTERVAL) {
+    lastPollTime = millis();
+    if (WiFi.status() == WL_CONNECTED && currentState == STATE_IDLE) {
+      pollForCommands();
+    }
+  }
+
+  // 1. 環境溫濕度監測
+  if (millis() - lastDHTReadTime > 2000) {
+    lastDHTReadTime = millis();
+    currentTemp = dht.readTemperature();
+    currentHum = dht.readHumidity();
+  }
+
+  // 2. 定時發送遙測數據 (每 10 秒)
+  if (millis() - lastTelemetryTime > TELEMETRY_INTERVAL) {
+    lastTelemetryTime = millis();
+    if (!isnan(currentTemp) && !isnan(currentHum) && WiFi.status() == WL_CONNECTED) {
+      HTTPClient httpTel;
+      httpTel.begin(telemetryUrl);
+      httpTel.addHeader("Content-Type", "application/json");
+
+      StaticJsonDocument<200> telDoc;
+      telDoc["temperature"] = currentTemp;
+      telDoc["humidity"] = currentHum;
+      telDoc["hardware_status"] = "OK";
+      telDoc["secret_key"] = telemetrySecret; 
+
+      String telBody;
+      serializeJson(telDoc, telBody);
+      int httpCode = httpTel.POST(telBody);
+      
+      if (httpCode == 200) {
+        Serial.println("[遙測上報] 成功更新環境數據至伺服器");
+      }
+      httpTel.end();
+    }
+  }
+
+  // 3. 狀態機與抽獎觸發邏輯
+  switch (currentState) {
+    case STATE_IDLE:
+      // 確保關門後徹底釋放馬達 PWM
+      if (activeDoorIndex != -1) {
+          delay(300);
+          cabinetLatches[activeDoorIndex].detach();
+          activeDoorIndex = -1;
+          Serial.println("[狀態] 關門完成，已徹底上鎖並回到待機狀態。");
+
+          // 通知伺服器出餐完成，重設機台為 IDLE
+          reportComplete();
+      }
+    
+      if (encoderTicks > 0) {
+        currentState = STATE_SPINNING;
+      }
+      break;
+      
+    case STATE_SPINNING:
+      if (encoderTicks >= TICKS_TO_TRIGGER) {
+        currentState = STATE_WAITING_API; 
+        Serial.println("\n[觸發] 轉數達標！向伺服器發送抽獎 HTTP 請求...");
+        
+        if (WiFi.status() == WL_CONNECTED) {
+          HTTPClient http;
+          http.begin(triggerUrl); 
+          http.addHeader("Content-Type", "application/json");
+          
+          StaticJsonDocument<200> reqDoc;
+          reqDoc["machine_id"] = machineId;
+          reqDoc["action"] = "KNOB_TURNED";
+          reqDoc["secret_key"] = triggerSecret; 
+          
+          String requestBody;
+          serializeJson(reqDoc, requestBody);
+          int httpCode = http.POST(requestBody);
+          
+          if (httpCode == 200) {
+            // 抽獎請求成功！開門指令會透過 HTTP 輪詢自動取得
+            Serial.println("[雲端核准] 抽獎請求成功！等待 HTTP 輪詢取得開門指令...");
+            encoderTicks = 0;
+            currentState = STATE_IDLE; 
+            
+          } else if (httpCode == 403) {
+            Serial.println("[雲端拒絕] 伺服器回傳 403：無待處理的付款訂單！");
+            encoderTicks = 0;
+            currentState = STATE_IDLE;
+          } else {
+            Serial.printf("[網路異常] 抽獎 API 錯誤代碼: %d\n", httpCode);
+            encoderTicks = 0;
+            currentState = STATE_IDLE;
+          }
+          http.end();
+        } else {
+          Serial.println("[錯誤] WiFi 斷線，無法聯繫伺服器！");
+          encoderTicks = 0;
+          currentState = STATE_IDLE;
+        }
+      } else if (encoderTicks == 0) {
+        currentState = STATE_IDLE;
+      }
+      break;
+      
+    case STATE_DOOR_WAITING_CLOSE:
+      if (activeDoorIndex == 0 && door1CloseTriggered) {
+        door1CloseTriggered = false;
+        Serial.println("[安全機制] 偵測到 1 號門已推回關閉，正在驅動伺服上鎖...");
+        cabinetLatches[0].attach(servoPins[0]);
+        cabinetLatches[0].write(LATCH_LOCKED);
+        currentState = STATE_IDLE;
+      }
+      else if (activeDoorIndex == 1 && door2CloseTriggered) {
+        door2CloseTriggered = false;
+        Serial.println("[安全機制] 偵測到 2 號門已推回關閉，正在驅動伺服上鎖...");
+        cabinetLatches[1].attach(servoPins[1]);
+        cabinetLatches[1].write(LATCH_LOCKED);
+        currentState = STATE_IDLE;
+      }
+      break;
+  }
+}

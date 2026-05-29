@@ -31,7 +31,7 @@ INSERT OR IGNORE INTO stores (user_id, name, description, address, latitude, lon
 
 -- 測試機台
 INSERT OR IGNORE INTO machines (id, name, location_desc, latitude, longitude, total_compartments, status, secret_key) VALUES
-('MAC_01A2B3', '大安站 1 號機', '捷運大安站 2 號出口旁', 25.0330, 121.5435, 12, 'IDLE', 'dev_secret_key_001');
+('MAC_01A2B3', '高雄1站', '捷運左營站 2 號出口旁', 22.6855, 120.3028, 12, 'IDLE', 'dev_secret_key_001');
 
 -- 艙位（12 個）
 INSERT OR IGNORE INTO compartments (machine_id, index_num, status) VALUES

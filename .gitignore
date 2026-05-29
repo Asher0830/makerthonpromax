@@ -33,3 +33,7 @@ dist/
 # Logs
 *.log
 npm-debug.log*
+
+# Unrelated / scratch
+impeccable-main/
+scratch/

@@ -35,8 +35,8 @@ async function renderConsumerMapPage() {
 
   renderPage(html);
 
-  /* ── Default center: Taipei ── */
-  const defaultCenter = [25.033, 121.565];
+  /* ── Default center: Zuoying Station ── */
+  const defaultCenter = [22.6855, 120.3028];
   const defaultZoom = 14;
 
   /* ── Initialize or reuse map ── */
@@ -63,8 +63,8 @@ async function renderConsumerMapPage() {
       maxZoom: 19,
     }).addTo(map);
 
-    /* Position zoom control to bottom-right */
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    /* Position zoom control to top-right to prevent collision with SCAN button */
+    L.control.zoom({ position: 'topright' }).addTo(map);
 
     window._mapInstance = map;
   }
@@ -155,14 +155,62 @@ async function renderConsumerMapPage() {
       markerCount++;
     });
 
+    // ── Fetch and display vending machines ──
+    try {
+      const machines = await api.getMachines();
+      const machineList = machines || [];
+
+      machineList.forEach((mac) => {
+        const lat = mac.latitude;
+        const lng = mac.longitude;
+
+        if (!lat || !lng) return;
+
+        const icon = L.divIcon({
+          className: 'custom-marker',
+          html: `<div class="marker-icon" style="border-color: var(--primary-color); background: #E8F5E9; color: var(--primary-color); font-weight: 800;">機</div>`,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22],
+        });
+
+        const marker = L.marker([lat, lng], { icon }).addTo(map);
+
+        const statusMap = {
+          IDLE: '正常運行中',
+          WAITING_FOR_PAYMENT: '待付款中',
+          WAITING_FOR_TRIGGER: '請轉動旋鈕！',
+          DISPENSING: '出餐中',
+          ERROR: '維護中',
+        };
+        const statusLabel = statusMap[mac.status] || mac.status || '正常運行中';
+
+        marker.bindPopup(`
+          <div class="map-popup">
+            <div class="popup-title">[機台] ${mac.name || '智慧惜食機'}</div>
+            <div class="popup-store">${mac.location_desc || '裝設位置'}</div>
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-color); margin: 6px 0 10px 0;">狀態：${statusLabel}</div>
+            <button class="btn btn-primary btn-sm popup-btn"
+                    onclick="router.navigate('/')">
+              前往機台/掃碼付款
+            </button>
+          </div>
+        `, { className: 'custom-popup' });
+
+        window._mapMarkers.push(marker);
+        markerCount++;
+      });
+    } catch (macErr) {
+      console.warn('Failed to load map machines:', macErr);
+    }
+
     /* Update floating count */
     const countEl = document.getElementById('product-count');
     if (countEl) {
       countEl.textContent = markerCount;
     }
   } catch (err) {
-    console.error('Failed to load map products:', err);
-    showToast('無法載入商品資料', 'error');
+    console.error('Failed to load map products/machines:', err);
+    showToast('無法載入地圖資料', 'error');
   }
 
   /* ── Ensure map renders correctly ── */

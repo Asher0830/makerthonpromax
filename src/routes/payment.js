@@ -52,6 +52,16 @@ payment.post('/mock/pay', async (c) => {
     }
 
     if (order.status !== 'PENDING') {
+        if (['WAITING_FOR_TRIGGER', 'DISPENSING', 'COMPLETED', 'PAID'].includes(order.status)) {
+            return success(c, {
+                order_id: order.id,
+                status: order.status,
+                amount: order.amount,
+                pickupCode: order.pickup_code,
+                payment_status: 'SUCCESS',
+                message: '訂單先前已付款成功',
+            });
+        }
         return error(c, 'INVALID_STATUS', '訂單狀態非待付款', 400);
     }
 
@@ -77,8 +87,54 @@ payment.post('/mock/pay', async (c) => {
                 awardPoints(order.user_id, points);
             }
         });
+    } else if (order.order_type === 'machine_purchase') {
+        // 機台直購訂單：付款後不需要轉動旋鈕，直接出餐並發送開門通知！
+        const { query: dbQuery, transaction } = await import('../db/connection.js');
+        const { sendOpenDoor } = await import('../services/mqtt.js');
+        const { awardPoints, dispenseCompartment } = await import('../services/inventory.js');
+
+        // 取得艙位與商品詳情
+        const comp = queryFirst(
+            `SELECT c.id as compartment_id, c.index_num, p.id as product_id, p.name, p.category, p.selling_price, p.original_price
+             FROM compartments c
+             JOIN products p ON c.product_id = p.id
+             WHERE c.id = ?`,
+            [order.compartment_id]
+        );
+
+        if (!comp) {
+            return error(c, 'COMPARTMENT_NOT_AVAILABLE', '商品已被他人抽走或艙位狀態不正確', 400);
+        }
+
+        const points = Math.floor(comp.selling_price * (parseInt(process.env.POINTS_PER_DOLLAR || '1')));
+
+        transaction(() => {
+            dbQuery(
+                `UPDATE orders SET status = 'DISPENSING', points_earned = ?, paid_at = datetime('now'), updated_at = datetime('now'), version = version + 1 WHERE id = ?`,
+                [points, order_id]
+            );
+            dbQuery(
+                `UPDATE machines SET status = 'DISPENSING', active_order_id = ? WHERE id = ?`,
+                [order_id, order.machine_id]
+            );
+            dbQuery(
+                `UPDATE compartments SET status = 'RESERVED' WHERE id = ?`,
+                [comp.compartment_id]
+            );
+            dispenseCompartment(comp.compartment_id);
+            if (order.user_id) {
+                awardPoints(order.user_id, points);
+            }
+            dbQuery(
+                `UPDATE products SET status = 'SOLD', updated_at = datetime('now') WHERE id = ?`,
+                [comp.product_id]
+            );
+        });
+
+        // 發送開門指令到 ESP32
+        await sendOpenDoor(order.machine_id, comp.index_num, `order_${order_id}`);
     } else {
-        // 機台訂單 (machine_gacha / machine_purchase)：標記 WAITING_FOR_TRIGGER + 更新機台狀態
+        // 機台扭蛋訂單 (machine_gacha)：標記 WAITING_FOR_TRIGGER + 更新機台狀態
         const { query: dbQuery, transaction } = await import('../db/connection.js');
         transaction(() => {
             dbQuery(

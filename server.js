@@ -85,12 +85,17 @@ async function start() {
     serve({
         fetch: app.fetch,
         port: PORT,
+        hostname: '0.0.0.0',
     }, (info) => {
+        const ip = '10.71.71.65';
         console.log('');
         console.log(`[OK] 伺服器啟動成功！`);
-        console.log(`[API]    API:     http://localhost:${info.port}/api/health`);
-        console.log(`[MOBILE] 手機端:  http://localhost:${info.port}/mobile/`);
-        console.log(`[TABLET] 平板端:  http://localhost:${info.port}/tablet/`);
+        console.log(`[LOCAL]  本機:    http://localhost:${info.port}/api/health`);
+        console.log(`[LAN]    區網:    http://${ip}:${info.port}/api/health`);
+        console.log(`[MOBILE] 手機端:  http://${ip}:${info.port}/mobile/`);
+        console.log(`[TABLET] 平板端:  http://${ip}:${info.port}/tablet/`);
+        console.log(`[ESP32]  觸發:    POST http://${ip}:${info.port}/api/v1/machines/trigger`);
+        console.log(`[ESP32]  輪詢:    GET  http://${ip}:${info.port}/api/v1/machines/MAC_01A2B3/pop-command`);
         console.log('');
         console.log('[INFO] 測試帳號:');
         console.log('   消費者: consumer@test.com / test1234');

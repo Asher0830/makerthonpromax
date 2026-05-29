@@ -2,6 +2,12 @@
 // Renders the machine pairing page with QR scanner
 
 async function renderStorePairPage() {
+    if (!authManager.isLoggedIn() || !authManager.isStoreOwner()) {
+        showToast('請以店家身份登入後再進行機台配對！', 'warning');
+        router.navigate('/login');
+        return;
+    }
+
     // Check for token in URL hash
     const hashParts = location.hash.split('?');
     const params = new URLSearchParams(hashParts[1] || '');

@@ -3,6 +3,13 @@
    ═══════════════════════════════════════════════════ */
 
 async function renderConsumerScanPage() {
+  if (!authManager.isLoggedIn()) {
+    showToast('請先登入以進行掃碼付款！', 'warning');
+    localStorage.setItem('redirect_after_login', '#/consumer/scan');
+    router.navigate('/login');
+    return;
+  }
+
   updateBottomNav('map');
 
   const html = `
@@ -19,19 +26,41 @@ async function renderConsumerScanPage() {
         
         <div id="consumer-qr-reader" style="width: 100%; max-width: 320px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 1px solid rgba(28,27,26,0.08);"></div>
 
-        <!-- 模擬測試手動輸入區塊 -->
-        <div style="margin-top: 24px; border-top: 1px dashed rgba(28,27,26,0.1); padding-top: 20px;">
-          <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;">[模擬測試] 手動輸入付款網址或訂單 ID</p>
-          <div style="display: flex; gap: 8px; justify-content: center;">
-            <input type="text" id="manual-order-id" placeholder="例如：1" style="width: 140px; padding: 8px 12px; border: 1px solid rgba(28,27,26,0.15); border-radius: 6px; font-size: 14px; text-align: center; background: #fff;" />
-            <button class="btn btn-primary" onclick="handleManualOrder()" style="padding: 8px 16px; font-size: 13px; font-weight: 700; width: auto; min-height: unset; border-radius: 6px;">確認進入</button>
-          </div>
+        <!-- 檔案上傳解碼備用方案 -->
+        <div style="margin-top: 16px;">
+          <label for="qr-file-input" class="btn btn-secondary btn-block" style="font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 6px; border: 1px dashed var(--primary-color); color: var(--primary-color); background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+            <span>[FILE]</span> 上傳 QR Code 照片解碼
+          </label>
+          <input type="file" id="qr-file-input" accept="image/*" style="display: none;" />
         </div>
       </div>
     </div>
   `;
 
   renderPage(html);
+
+  /* Helper to process QR code payload */
+  function handleDecodedQR(decodedText) {
+    try {
+      if (decodedText.includes('/consumer/pay/')) {
+        const parts = decodedText.split('/consumer/pay/');
+        const orderId = parts[1].split('?')[0];
+        
+        if (orderId) {
+          router.navigate('/consumer/pay/' + orderId);
+        } else {
+          showToast('無效的付款 QR Code', 'error');
+          router.navigate('/consumer/map');
+        }
+      } else {
+        showToast('非付款或機台 QR Code', 'error');
+        router.navigate('/consumer/map');
+      }
+    } catch (e) {
+      console.error('Scan parse error', e);
+      router.navigate('/consumer/map');
+    }
+  }
 
   /* Initialize camera scanner after DOM is ready */
   setTimeout(() => {
@@ -44,62 +73,50 @@ async function renderConsumerScanPage() {
     const scanner = new Html5Qrcode('consumer-qr-reader');
     window.activeQRScanner = scanner;
 
-    scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 220, height: 220 } },
-      (decodedText) => {
-        scanner.stop().then(() => {
-          window.activeQRScanner = null;
-          showToast('掃描成功！', 'success');
+    const startScanner = (facing) => {
+      return scanner.start(
+        { facingMode: facing },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          scanner.stop().then(() => {
+            window.activeQRScanner = null;
+            showToast('掃描成功！', 'success');
+            handleDecodedQR(decodedText);
+          });
+        },
+        (errorMessage) => { /* ignore continuous scan errors */ }
+      );
+    };
 
-          // Parse the scanned content
-          try {
-            if (decodedText.includes('/consumer/pay/')) {
-              // Extract order ID
-              const parts = decodedText.split('/consumer/pay/');
-              const orderId = parts[1].split('?')[0];
-              
-              if (orderId) {
-                router.navigate('/consumer/pay/' + orderId);
-              } else {
-                showToast('無效的付款 QR Code', 'error');
-                router.navigate('/consumer/map');
-              }
-            } else {
-              showToast('非付款或機台 QR Code', 'error');
-              router.navigate('/consumer/map');
-            }
-          } catch (e) {
-            console.error('Scan parse error', e);
-            router.navigate('/consumer/map');
-          }
-        });
-      },
-      (errorMessage) => { /* ignore continuous scan errors */ }
-    ).catch(err => {
-      console.error('Scanner error:', err);
-      showToast('無法啟動相機，請確認已授予權限', 'error');
+    // Try back camera first, fallback to front camera if fails (e.g. laptop testing)
+    startScanner('environment').catch(err => {
+      console.warn('Back camera failed, trying front camera...', err);
+      startScanner('user').catch(e => {
+        console.error('Scanner error:', e);
+        showToast('相機啟動受限 (可能非 HTTPS 環境)。請使用下方照片上傳解碼！', 'info', 5000);
+      });
     });
+
+    // File Input Decoder Fallback
+    const fileInput = document.getElementById('qr-file-input');
+    if (fileInput) {
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        showLoading();
+        try {
+          const html5QrCode = new Html5Qrcode('consumer-qr-reader');
+          const decodedText = await html5QrCode.scanFile(file, true);
+          hideLoading();
+          showToast('照片解碼成功！', 'success');
+          handleDecodedQR(decodedText);
+        } catch (err) {
+          hideLoading();
+          console.error(err);
+          showToast('無法識別照片中的 QR Code，請重試', 'error');
+        }
+      });
+    }
   }, 300);
-
-  /* ── 手動模擬輸入訂單 ID ── */
-  window.handleManualOrder = function () {
-    const inputVal = document.getElementById('manual-order-id').value.trim();
-    if (!inputVal) {
-      showToast('請輸入訂單 ID 或完整網址', 'error');
-      return;
-    }
-
-    let orderId = inputVal;
-    if (inputVal.includes('/consumer/pay/')) {
-      const parts = inputVal.split('/consumer/pay/');
-      orderId = parts[1].split('?')[0];
-    }
-
-    if (orderId && !isNaN(orderId)) {
-      router.navigate('/consumer/pay/' + orderId);
-    } else {
-      showToast('無效的訂單 ID 格式', 'error');
-    }
-  };
 }

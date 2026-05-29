@@ -1,65 +1,73 @@
 /**
- * MQTT 發布服務
- * 本地開發：Mock 模式（console.log）
- * 部署後：HTTP POST → EMQX REST API
+ * 機台指令佇列服務 (HTTP Polling 架構)
+ * 
+ * 取代原本的 MQTT 推送機制，改用伺服器端記憶體佇列 + ESP32 HTTP 輪詢。
+ * ESP32 每秒呼叫 GET /api/v1/machines/:machineId/pop-command 來取得待執行指令。
+ * 
+ * 優勢：
+ *   - 零額外 Broker 依賴（不需安裝 Mosquitto / EMQX）
+ *   - 完美相容 Cloudflare Workers 部署（純 HTTP）
+ *   - 防火牆友善（僅使用標準 HTTP/HTTPS Port）
+ *   - ESP32 斷線自癒（重連後自動恢復輪詢，無需管理長連接）
  */
 
-const MQTT_MODE = process.env.MQTT_MODE || 'mock';
-const EMQX_API_URL = process.env.EMQX_API_URL || '';
-const EMQX_API_KEY = process.env.EMQX_API_KEY || '';
-const EMQX_API_SECRET = process.env.EMQX_API_SECRET || '';
+// 機台指令佇列：machineId → command[]
+const commandQueues = new Map();
 
 /**
- * 發布 MQTT 訊息
- * @param {string} topic - MQTT Topic
- * @param {object} payload - 訊息內容
- * @returns {Promise<boolean>} 是否成功
+ * 將開門指令推入指定機台的待執行佇列
+ * @param {string} machineId - 機台 ID
+ * @param {number} doorIndex - 艙位編號 (1~12)
+ * @param {string} requestId - 訂單識別碼（用於 ESP32 日誌追蹤）
+ * @returns {boolean} 是否成功推入
  */
-export async function publishMQTT(topic, payload) {
-    if (MQTT_MODE === 'mock') {
-        console.log('[MQTT Mock] Topic:', topic);
-        console.log('[MQTT Mock] Payload:', JSON.stringify(payload, null, 2));
-        return true;
+export async function sendOpenDoor(machineId, doorIndex, requestId) {
+    const command = {
+        action: 'OPEN',
+        door_index: doorIndex,
+        request_id: requestId,
+        queued_at: new Date().toISOString(),
+    };
+
+    if (!commandQueues.has(machineId)) {
+        commandQueues.set(machineId, []);
     }
 
-    // 真實模式：呼叫 EMQX HTTP API
-    try {
-        const response = await fetch(`${EMQX_API_URL}/publish`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Basic ' + btoa(`${EMQX_API_KEY}:${EMQX_API_SECRET}`),
-            },
-            body: JSON.stringify({
-                topic,
-                payload: JSON.stringify(payload),
-                qos: 1,
-                retain: false,
-            }),
-        });
+    commandQueues.get(machineId).push(command);
 
-        if (!response.ok) {
-            console.error('[MQTT ERR] EMQX API 錯誤:', response.status, await response.text());
-            return false;
-        }
-
-        console.log('[MQTT OK] MQTT 訊息已發布:', topic);
-        return true;
-    } catch (err) {
-        console.error('[MQTT ERR] EMQX 連線失敗:', err.message);
-        return false;
-    }
+    console.log(`[指令佇列] 已推入開門指令 → 機台: ${machineId}, 艙位: ${doorIndex}, 訂單: ${requestId}`);
+    return true;
 }
 
 /**
- * 發送開門指令
+ * 從指定機台的佇列中取出（彈出）最早的一筆待執行指令
+ * ESP32 輪詢時呼叫此函式，取出後該指令即從佇列移除（防止重複開門）
+ * @param {string} machineId - 機台 ID
+ * @returns {object|null} 指令物件，或 null（無待執行指令）
  */
-export async function sendOpenDoor(machineId, doorIndex, requestId) {
-    return publishMQTT(`v1/machines/${machineId}/control`, {
-        action: 'OPEN',
-        door_index: doorIndex,
-        pwm_ms: 1500,
-        auto_close_sec: 3,
-        request_id: requestId,
-    });
+export function popCommand(machineId) {
+    const queue = commandQueues.get(machineId);
+    if (!queue || queue.length === 0) {
+        return null;
+    }
+    const command = queue.shift();
+    console.log(`[指令佇列] 已彈出指令 → 機台: ${machineId}, 動作: ${command.action}, 艙位: ${command.door_index}`);
+    return command;
+}
+
+/**
+ * 查看指定機台佇列中待執行指令數量（除錯用）
+ * @param {string} machineId - 機台 ID
+ * @returns {number} 待執行指令數
+ */
+export function getQueueLength(machineId) {
+    const queue = commandQueues.get(machineId);
+    return queue ? queue.length : 0;
+}
+
+// 保留 publishMQTT 的相容介面（若有其他模組呼叫）
+export async function publishMQTT(topic, payload) {
+    console.log('[指令佇列] publishMQTT 已棄用，請改用 sendOpenDoor + popCommand');
+    console.log('[指令佇列] Topic:', topic, 'Payload:', JSON.stringify(payload));
+    return true;
 }

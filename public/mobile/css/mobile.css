@@ -7,6 +7,8 @@
     --primary: #008055;
     --primary-light: #00a36c;
     --primary-dark: #005c3d;
+    --primary-color: var(--primary); /* Safe Alias for JS files using primary-color */
+    --bg-secondary: rgba(0, 128, 85, 0.04); /* Safe Alias for payment options active state */
     --accent: #008055; /* The One Voice Rule: Emerald Green as the single brand accent */
     --accent-light: rgba(0, 128, 85, 0.06);
     --bg: #F7F5F0; /* The Paper-Not-White Rule: Warm Ash Cream */
@@ -39,6 +41,7 @@ html {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
     -webkit-tap-highlight-color: transparent;
+    background: #E5E2DC; /* Out-of-bounds background for tablet/desktop previews */
 }
 
 body {
@@ -50,6 +53,13 @@ body {
     -moz-osx-font-smoothing: grayscale;
     line-height: 1.6;
     text-wrap: pretty;
+    
+    /* Responsive Desktop Frame */
+    max-width: 480px;
+    margin: 0 auto;
+    box-shadow: 0 0 32px rgba(28, 27, 26, 0.08);
+    position: relative;
+    min-height: 100vh;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -88,6 +98,13 @@ button { font-family: inherit; }
     border-bottom: 1px solid var(--border); /* Subtle Hairline */
 }
 
+/* iOS Notch Safety Spacing */
+@supports (padding-top: env(safe-area-inset-top)) {
+    .page-header {
+        padding-top: calc(18px + env(safe-area-inset-top));
+    }
+}
+
 .page-header h1 {
     font-size: 18px;
     font-weight: 700;
@@ -119,8 +136,10 @@ button { font-family: inherit; }
 #bottom-nav {
     position: fixed;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
     background: var(--surface);
     display: flex;
     justify-content: space-around;
@@ -579,6 +598,8 @@ button { font-family: inherit; }
     max-height: 80vh;
     overflow-y: auto;
     width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
     animation: slideUp 0.3s ease;
 }
 
@@ -641,7 +662,12 @@ button { font-family: inherit; }
 /* ---------- Loading Overlay ---------- */
 #loading-overlay {
     position: fixed;
-    inset: 0;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
     background: rgba(255,255,255,0.85);
     z-index: 9998;
     display: none;

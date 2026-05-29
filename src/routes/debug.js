@@ -102,6 +102,7 @@ debug.post('/db/reset', async (c) => {
                 query('DELETE FROM compartments');
                 query('DELETE FROM products');
                 query('DELETE FROM stores');
+                query('DELETE FROM machines');
                 query('DELETE FROM sessions');
                 query('DELETE FROM users');
                 query('DELETE FROM sqlite_sequence'); // 重設自增 ID 數值
@@ -151,6 +152,47 @@ debug.post('/orders/complete', async (c) => {
     );
 
     return c.json({ success: true, message: `訂單 ${orderId} 已變更為已完成` });
+});
+
+// 9. POST /machine/unlock — 強制解鎖機台（無論任何狀態都能回到 IDLE）
+// 適用於：WAITING_FOR_TRIGGER 卡死、測試中途放棄、任何異常狀態
+debug.post('/machine/unlock', async (c) => {
+    const body = await c.req.json();
+    const { machineId } = body;
+
+    if (!machineId) {
+        return c.json({ success: false, error: '請提供 machineId' }, 400);
+    }
+
+    const machine = query('SELECT id, status, active_order_id FROM machines WHERE id = ?', [machineId]).results[0];
+    if (!machine) {
+        return c.json({ success: false, error: '找不到機台' }, 404);
+    }
+
+    transaction(() => {
+        // 取消所有該機台的進行中訂單（PENDING / WAITING_FOR_TRIGGER / DISPENSING）
+        query(
+            `UPDATE orders SET status = 'CANCELLED', updated_at = datetime('now')
+             WHERE machine_id = ? AND status IN ('PENDING', 'WAITING_FOR_TRIGGER', 'DISPENSING')`,
+            [machineId]
+        );
+
+        // 釋放所有 RESERVED 艙位
+        query(
+            `UPDATE compartments SET status = 'STOCKED'
+             WHERE machine_id = ? AND status = 'RESERVED'`,
+            [machineId]
+        );
+
+        // 強制機台回 IDLE
+        query(
+            `UPDATE machines SET status = 'IDLE', active_order_id = NULL WHERE id = ?`,
+            [machineId]
+        );
+    });
+
+    console.log(`[DEBUG] 機台 ${machineId} 強制解鎖：${machine.status} -> IDLE`);
+    return c.json({ success: true, message: `機台 ${machineId} 已強制解鎖回 IDLE（前狀態：${machine.status}）` });
 });
 
 export default debug;

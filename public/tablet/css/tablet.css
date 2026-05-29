@@ -456,6 +456,13 @@ body::before {
   color: var(--accent-green);
 }
 
+.category-toggle-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
 /* ═══════════════════════════════════════════════════
    ALLERGEN TOGGLES
    ═══════════════════════════════════════════════════ */
@@ -838,6 +845,7 @@ body::before {
 .welcome-logo {
   font-size: 4rem;
   animation: float 3s ease-in-out infinite;
+  margin-top: 32px;
 }
 
 .welcome-tagline {

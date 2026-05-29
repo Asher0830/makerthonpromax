@@ -115,6 +115,9 @@ function updateBottomNav(activeTab) {
 
     if (authManager.isConsumer()) {
         nav.innerHTML = `
+            <div class="nav-item ${activeTab === 'home' ? 'active' : ''}" onclick="router.navigate('/consumer/home')">
+                <span class="nav-label">主頁</span>
+            </div>
             <div class="nav-item ${activeTab === 'map' ? 'active' : ''}" onclick="router.navigate('/consumer/map')">
                 <span class="nav-label">地圖</span>
             </div>
@@ -211,7 +214,7 @@ router.add('/', () => {
     if (!authManager.isLoggedIn()) {
         router.navigate('/login');
     } else if (authManager.isConsumer()) {
-        router.navigate('/consumer/map');
+        router.navigate('/consumer/home');
     } else {
         router.navigate('/store/dashboard');
     }
@@ -219,6 +222,7 @@ router.add('/', () => {
 
 router.add('/login', renderLoginPage);
 router.add('/register', renderRegisterPage);
+router.add('/consumer/home', renderConsumerHomePage);
 router.add('/consumer/map', renderConsumerMapPage);
 router.add('/consumer/store/:id', renderConsumerStorePage);
 router.add('/consumer/pay/:orderId', renderConsumerPayPage);

@@ -19,7 +19,7 @@ async function renderLoginPage() {
   const html = `
     <div class="login-page">
       <div class="login-logo">
-        <div class="logo-icon" style="font-family:'Outfit',sans-serif; font-weight:800; font-size:2rem; letter-spacing:-1px; color:var(--primary-color);">FD</div>
+        <div class="logo-icon" style="font-family:'Outfit',sans-serif; font-weight:800; font-size:2rem; letter-spacing:-1.5px; color:var(--primary-color);">SFood</div>
         <h1 class="logo-title">惜食救援</h1>
         <p class="logo-subtitle">讓美食不被浪費</p>
       </div>
@@ -58,6 +58,13 @@ async function renderLoginPage() {
 
       <div class="login-link">
         還沒有消費者帳號？<a href="#/register">註冊</a>
+      </div>
+
+      <div style="margin-top: 24px; text-align: center; border-top: 1px dashed rgba(28,27,26,0.1); padding-top: 20px;">
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 500;">想要訪客直接付款或取餐？</p>
+        <button class="btn btn-secondary btn-block" onclick="router.navigate('/consumer/scan')" style="border: 1px solid var(--primary-color); color: var(--primary-color); background: transparent; font-weight: 700; border-radius: 8px;">
+          訪客直接掃碼
+        </button>
       </div>
     </div>
   `;

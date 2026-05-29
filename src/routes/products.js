@@ -171,7 +171,7 @@ products.get('/', async (c) => {
     const status = c.req.query('status') || 'AVAILABLE';
     const store_id = c.req.query('store_id');
     const user = getOptionalUser(c);
-    const now = new Date().toISOString();
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
     const hideExpired = source === 'map' || (store_id && (!user || user.role !== 'store_owner'));
 

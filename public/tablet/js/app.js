@@ -13,7 +13,7 @@ class TabletApp {
 
     /* ── Data stores ── */
     this.machineStatus = {
-      machineName: '惜食扭蛋機 #1',
+      machineName: '高雄1站',
       temperature: null,
       compartments: [],
       totalStocked: 0,
@@ -26,6 +26,7 @@ class TabletApp {
     this.currentResult = null;  // { compartment, productName, category }
     this.pairToken = null;
     this.errorMessage = '';
+    this._lastIdleDataStr = '';
 
     /* ── Timers ── */
     this._countdownTimer = null;
@@ -135,26 +136,27 @@ class TabletApp {
 
     const cells = grid.map((c) => {
       const isWinner = c.number === winnerIndex;
+      const isStocked = c.status === 'stocked' && (!c.productStatus || c.productStatus === 'available');
+      const isDispensed = c.status === 'dispensed';
+
       let cls = 'compartment-slot';
       if (isWinner) cls += ' compartment-slot--winner';
-      else if (c.status === 'stocked') cls += ' compartment-slot--stocked';
-      else if (c.status === 'dispensed') cls += ' compartment-slot--dispensed';
+      else if (isStocked) cls += ' compartment-slot--stocked';
+      else if (isDispensed) cls += ' compartment-slot--dispensed';
       else cls += ' compartment-slot--empty';
 
-      const statusLabel = { stocked: '已補貨', empty: '空', dispensed: '已出餐' }[c.status] || c.status;
-      const clickHandler = c.status === 'stocked' && winnerIndex === -1 && this.state === 'IDLE'
+      const clickHandler = isStocked && winnerIndex === -1 && this.state === 'IDLE'
         ? `onclick="app.onDirectPurchase(${c.number})"`
         : '';
-      const style = c.status === 'stocked' && winnerIndex === -1 && this.state === 'IDLE'
+      const style = isStocked && winnerIndex === -1 && this.state === 'IDLE'
         ? 'cursor: pointer;'
         : '';
 
       return `
         <div class="${cls}" ${clickHandler} style="${style}">
           <span class="compartment-slot__number">${c.number}</span>
-          <span class="compartment-slot__status">${statusLabel}</span>
-          ${c.productName ? `<span class="compartment-slot__product">${c.productName}</span>` : ''}
-          ${c.status === 'stocked' && c.price ? `<span class="compartment-slot__price" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); margin-top: 2px;">$${c.price}</span>` : ''}
+          ${(isStocked && c.productName) ? `<span class="compartment-slot__product">${c.productName}</span>` : ''}
+          ${(isStocked && c.price) ? `<span class="compartment-slot__price" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); margin-top: 2px;">$${c.price}</span>` : ''}
         </div>`;
     }).join('');
 
@@ -167,12 +169,29 @@ class TabletApp {
 
   _renderIdle() {
     const { totalStocked } = this.machineStatus;
+    const canGacha = totalStocked >= 2;
+    
+    let warningBanner = '';
+    if (totalStocked === 1) {
+      warningBanner = `
+        <div class="pool-warning" style="background: rgba(211,47,47,0.15); color: #ff5252; font-size: 1.1rem; border-radius: var(--radius-md); padding: 12px 18px; max-width: 460px; text-align: center; line-height: 1.5; border: 1px solid rgba(211,47,47,0.3); margin-top: 4px;">
+          ⚠️ 目前商品僅剩 1 個，扭蛋功能已暫停，請點選上方艙位進行「直接購買」選購！
+        </div>
+      `;
+    } else if (totalStocked === 0) {
+      warningBanner = `
+        <div class="pool-warning" style="background: rgba(255,255,255,0.05); color: var(--text-secondary); font-size: 1.1rem; border-radius: var(--radius-md); padding: 12px 18px; max-width: 460px; text-align: center; line-height: 1.5; border: 1px solid var(--glass-border); margin-top: 4px;">
+          ⚠️ 目前機台已無商品，補貨中，請稍候！
+        </div>
+      `;
+    }
+
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-24">
-        <div class="welcome-logo">FoodD</div>
+        <div class="welcome-logo">SFood</div>
         <h1 class="title title--gradient">惜食扭蛋機</h1>
-        <p class="welcome-tagline">用驚喜拯救美味 ── 每一轉都是善舉</p>
+        <p class="welcome-tagline">晚餐不知道吃什麼? 轉一下吧</p>
 
         ${this._compartmentGrid()}
 
@@ -183,9 +202,12 @@ class TabletApp {
           </div>
         </div>
 
-        <button class="btn btn--primary btn--large" onclick="app.onStartGacha()">
-          開始扭蛋
-        </button>
+        <div class="flex-col gap-12" style="width: 100%; display: flex; align-items: center; gap: 12px;">
+          <button class="btn btn--primary btn--large" ${!canGacha ? 'disabled' : ''} onclick="app.onStartGacha()">
+            開始扭蛋
+          </button>
+          ${warningBanner}
+        </div>
 
         <button class="pair-link" onclick="app.onEnterPairMode()">
           店家配對
@@ -200,12 +222,26 @@ class TabletApp {
       { key: 'vegetable', label: '有機蔬菜' },
     ];
 
+    const compartments = this.machineStatus.compartments || [];
+    const stocked = compartments.filter(c => c.status === 'stocked' && (!c.productStatus || c.productStatus === 'available'));
+
     const categoryButtons = categories.map((cat) => {
+      const count = stocked.filter(c => c.category === cat.key).length;
       const active = this.selectedCategory === cat.key;
+      const isDisabled = count < 2;
+      
+      let suffix = ` (${count})`;
+      if (count === 1) {
+        suffix = ` (僅剩 1 個，請直接選購)`;
+      } else if (count === 0) {
+        suffix = ` (無商品)`;
+      }
+
       return `
         <button class="category-toggle-btn ${active ? 'category-toggle-btn--active' : ''}"
+                ${isDisabled ? 'disabled' : ''}
                 onclick="app.onSelectCategory(${cat.key ? `'${cat.key}'` : 'null'})">
-          <span>${cat.label}</span>
+          <span>${cat.label}${suffix}</span>
         </button>
       `;
     }).join('');
@@ -292,6 +328,24 @@ class TabletApp {
   }
 
   _renderWaitingTrigger() {
+    const isDirectPurchase = this.currentOrder?.orderType === 'machine_purchase';
+
+    if (isDirectPurchase) {
+      return `
+        ${this._statusBar()}
+        <div class="screen flex-col gap-32">
+          <h2 class="title title--gold" style="animation: pulse 1.5s ease-in-out infinite;">
+            付款成功，出餐中！
+          </h2>
+
+          <div style="width: 48px; height: 48px; border: 4px solid rgba(255,215,0,0.15); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin-knob 1s linear infinite;"></div>
+
+          <p class="body-text" style="animation: pulse 2s ease-in-out infinite;">
+            正在為您開啟艙門，請稍候…
+          </p>
+        </div>`;
+    }
+
     return `
       ${this._statusBar()}
       <div class="screen flex-col gap-32">
@@ -330,22 +384,27 @@ class TabletApp {
   _gachaCells() {
     const markers = ['✦', '✧', '✦', '✧', '✦', '✧'];
     let slots = this.machineStatus.compartments || [];
+    const winnerNum = this.currentResult?.compartment;
     
-    // Filter to only include stocked items
-    slots = slots.filter(c => c.status === 'stocked');
-    
-    // Filter by selected category
-    if (this.selectedCategory) {
-      slots = slots.filter(c => c.category === this.selectedCategory);
-    }
-    
-    // Filter by excluded allergens
-    if (this.excludedAllergens && this.excludedAllergens.size > 0) {
-      slots = slots.filter(c => {
+    slots = slots.filter(c => {
+      // 贏家艙門必須絕對保留在動畫池中，防止因狀態已轉變為 SOLD/dispensed 而被過濾
+      if (c.number === winnerNum) return true;
+      
+      // 其他艙門必須是 stocked 且可用
+      const isAvailableStocked = c.status === 'stocked' && (!c.productStatus || c.productStatus === 'available');
+      if (!isAvailableStocked) return false;
+      
+      // 其他艙門也必須符合分類過濾
+      if (this.selectedCategory && c.category !== this.selectedCategory) return false;
+      
+      // 其他艙門也必須排除過敏原
+      if (this.excludedAllergens && this.excludedAllergens.size > 0) {
         const allergens = c.allergens || [];
-        return !allergens.some(a => this.excludedAllergens.has(a));
-      });
-    }
+        if (allergens.some(a => this.excludedAllergens.has(a))) return false;
+      }
+      
+      return true;
+    });
 
     // Fallback if empty (should not happen in real flow due to button disable)
     if (!slots.length) {
@@ -411,10 +470,25 @@ class TabletApp {
       <div class="screen flex-col gap-24">
         <div class="error-title" style="font-size: var(--fs-header); font-weight: 800; color: var(--accent-red);">系統異常</div>
         <div class="error-message">${this.errorMessage || '發生未知錯誤'}</div>
-        <button class="btn btn--primary" onclick="app.setState('IDLE')">
+        <button class="btn btn--primary" onclick="app.forceUnlock()">
           返回首頁
         </button>
       </div>`;
+  }
+
+  async forceUnlock() {
+    try {
+      await fetch(`/api/v1/debug/machine/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ machineId: this.machineId }),
+      });
+    } catch (e) {
+      console.warn('[App] forceUnlock failed (non-critical)', e);
+    }
+    this.currentOrder = null;
+    this.currentResult = null;
+    this.setState('IDLE');
   }
 
   /* ═══════════════════════════════════════════════════
@@ -451,7 +525,25 @@ class TabletApp {
 
   onStartGacha() {
     this.excludedAllergens.clear();
-    this.selectedCategory = 'bento';
+    
+    // 智慧型防呆預設類別選擇：選擇第一個可用商品數 >= 2 的類別，防止直接撞向禁用確認狀態
+    const compartments = this.machineStatus.compartments || [];
+    const stocked = compartments.filter(c => c.status === 'stocked' && (!c.productStatus || c.productStatus === 'available'));
+    
+    const bentoCount = stocked.filter(c => c.category === 'bento').length;
+    const breadCount = stocked.filter(c => c.category === 'bread').length;
+    const vegCount = stocked.filter(c => c.category === 'vegetable').length;
+    
+    if (bentoCount >= 2) {
+      this.selectedCategory = 'bento';
+    } else if (breadCount >= 2) {
+      this.selectedCategory = 'bread';
+    } else if (vegCount >= 2) {
+      this.selectedCategory = 'vegetable';
+    } else {
+      this.selectedCategory = 'bento'; // 預設降級備用
+    }
+
     this.setState('ALLERGEN_SELECT');
   }
 
@@ -561,7 +653,7 @@ class TabletApp {
   _generatePaymentQR() {
     const target = document.getElementById('qr-target');
     if (!target || !this.currentOrder) return;
-    const url = `http://localhost:3000/mobile/#/consumer/pay/${this.currentOrder.orderId}`;
+    const url = `http://10.71.71.65:3000/mobile/#/consumer/pay/${this.currentOrder.orderId}`;
     
     try {
       if (typeof QRCode !== 'undefined') {
@@ -587,7 +679,7 @@ class TabletApp {
   _generatePairQR() {
     const target = document.getElementById('pair-qr-target');
     if (!target) return;
-    const url = `http://localhost:3000/mobile/#/store/pair?token=${this.pairToken}`;
+    const url = `http://10.71.71.65:3000/mobile/#/store/pair?token=${this.pairToken}`;
     
     try {
       if (typeof QRCode !== 'undefined') {
@@ -752,9 +844,8 @@ class TabletApp {
           if (typeof gsap !== 'undefined') {
             gsap.fromTo(cells[idx], { scale: 1.05 }, { scale: 1, duration: 0.2, ease: 'back.out(2)' });
           }
-        }
-        idx++;
-        if (idx > cells.length) {
+          idx++;
+        } else {
           clearInterval(scanInterval);
 
           // Final: highlight winner
@@ -816,27 +907,39 @@ class TabletApp {
       averagePrice: status.averagePrice ?? this.machineStatus.averagePrice,
     };
 
-    // Re-render if on IDLE to keep data fresh
+    // Re-render if on IDLE to keep data fresh, but only if actual status has changed to prevent screen flashing
     if (this.state === 'IDLE') {
-      this.render();
+      const dataStr = JSON.stringify({
+        totalStocked: this.machineStatus.totalStocked,
+        compartments: (this.machineStatus.compartments || []).map(c => ({ number: c.number, status: c.status, price: c.price }))
+      });
+      if (dataStr !== this._lastIdleDataStr) {
+        this._lastIdleDataStr = dataStr;
+        this.render();
+      }
     }
 
     // If server says payment received while we're waiting
-    if (this.state === 'WAITING_PAYMENT' && status.orderStatus === 'paid') {
+    if (this.state === 'WAITING_PAYMENT' && (status.orderStatus === 'paid' || status.orderStatus === 'dispensing' || status.orderStatus === 'completed')) {
       this.setState('WAITING_TRIGGER');
     }
   }
 
   _handleLatestResult(result) {
     if (!result || !result.compartment) return;
-    // Only act if we're waiting for trigger
-    if (this.state === 'WAITING_TRIGGER') {
-      this.currentResult = result;
-      if (this.currentOrder?.orderType === 'machine_purchase' || result.orderType === 'machine_purchase') {
-        this.setState('RESULT');
-      } else {
-        this.setState('GACHA_ANIMATION');
-      }
+    // 只在等待觸發狀態下處理
+    if (this.state !== 'WAITING_TRIGGER') return;
+    // 比對 orderId，確認是目前這筆訂單的結果，防止舊歷史訂單誤觸發
+    if (this.currentOrder && result.orderId !== this.currentOrder.orderId) {
+      console.warn('[App] latest-result orderId 不符，忽略（舊訂單）', result.orderId, '!=', this.currentOrder.orderId);
+      return;
+    }
+    this.currentResult = result;
+    const orderType = result.orderType || this.currentOrder?.orderType;
+    if (orderType === 'machine_purchase') {
+      this.setState('RESULT');
+    } else {
+      this.setState('GACHA_ANIMATION');
     }
   }
 
@@ -845,7 +948,7 @@ class TabletApp {
      ═══════════════════════════════════════════════════ */
 
   _getFilteredPool() {
-    const comps = this.machineStatus.compartments.filter((c) => c.status === 'stocked');
+    const comps = this.machineStatus.compartments.filter((c) => c.status === 'stocked' && (!c.productStatus || c.productStatus === 'available'));
     if (!comps.length) {
       return { count: this.machineStatus.totalStocked || 0, avgPrice: this.machineStatus.averagePrice || 0 };
     }
