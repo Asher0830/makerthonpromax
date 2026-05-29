@@ -14,19 +14,26 @@
 
 import { query, queryFirst, transaction } from '../db/connection.js';
 
-// 確保 pending_commands 表存在（首次 import 時建立）
-try {
-    query(`CREATE TABLE IF NOT EXISTS pending_commands (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        machine_id TEXT NOT NULL,
-        action TEXT NOT NULL DEFAULT 'OPEN',
-        door_index INTEGER NOT NULL,
-        request_id TEXT,
-        queued_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`);
-} catch (err) {
-    console.warn('[指令佇列] 建立 pending_commands 表時發生錯誤（可能已存在）:', err.message);
+let tableChecked = false;
+function ensureTable() {
+    if (tableChecked) return;
+    try {
+        query(`CREATE TABLE IF NOT EXISTS pending_commands (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine_id TEXT NOT NULL,
+            action TEXT NOT NULL DEFAULT 'OPEN',
+            door_index INTEGER NOT NULL,
+            request_id TEXT,
+            queued_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`);
+        tableChecked = true;
+    } catch (err) {
+        // 靜默忽略資料庫尚未初始化時的呼叫
+    }
 }
+
+// 嘗試在匯入時建立表，失敗亦無妨，後續呼叫會自動修復
+ensureTable();
 
 /**
  * 將開門指令推入指定機台的待執行佇列（持久化至 SQLite）
@@ -36,6 +43,7 @@ try {
  * @returns {boolean} 是否成功推入
  */
 export async function sendOpenDoor(machineId, doorIndex, requestId) {
+    ensureTable();
     query(
         `INSERT INTO pending_commands (machine_id, action, door_index, request_id, queued_at) VALUES (?, 'OPEN', ?, ?, datetime('now'))`,
         [machineId, doorIndex, requestId]
@@ -52,6 +60,7 @@ export async function sendOpenDoor(machineId, doorIndex, requestId) {
  * @returns {object|null} 指令物件，或 null（無待執行指令）
  */
 export function popCommand(machineId) {
+    ensureTable();
     // 使用 transaction 確保 SELECT + DELETE 原子性
     const command = transaction(() => {
         const cmd = queryFirst(
@@ -98,6 +107,7 @@ export function popCommand(machineId) {
  * @returns {number} 待執行指令數
  */
 export function getQueueLength(machineId) {
+    ensureTable();
     const row = queryFirst(
         `SELECT COUNT(*) as cnt FROM pending_commands WHERE machine_id = ?`,
         [machineId]

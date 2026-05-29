@@ -147,3 +147,13 @@ CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_machine ON orders(machine_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+
+-- 機台指令佇列表 (用於 HTTP Polling)
+CREATE TABLE IF NOT EXISTS pending_commands (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    machine_id  TEXT NOT NULL,
+    action      TEXT NOT NULL DEFAULT 'OPEN',
+    door_index  INTEGER NOT NULL,
+    request_id  TEXT,
+    queued_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);

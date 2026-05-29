@@ -173,7 +173,7 @@ async function renderConsumerMapPage() {
 
         const icon = L.divIcon({
           className: 'custom-marker',
-          html: `<div class="marker-icon" style="border-color: var(--primary-color); background: #E8F5E9; color: var(--primary-color); font-weight: 800;">機</div>`,
+          html: `<div class="marker-icon marker-icon-machine">🎰</div>`,
           iconSize: [44, 44],
           iconAnchor: [22, 22],
         });
