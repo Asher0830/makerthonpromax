@@ -226,6 +226,28 @@ async function renderConsumerPayPage(orderId) {
       const result = await api.processPayment(oid);
       hideLoading();
 
+      // 彈出食品安全彈窗提醒要盡快吃完
+      const modalDiv = document.createElement('div');
+      modalDiv.id = 'food-safety-modal';
+      modalDiv.innerHTML = `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; opacity: 1; transition: opacity 0.3s ease-in-out;">
+          <div style="background: var(--surface); width: 88%; max-width: 320px; border-radius: 20px; padding: 24px; text-align: center; box-shadow: var(--shadow-lg); border: 1px solid rgba(0,128,85,0.15);">
+            <div style="font-size: 2.8rem; margin-bottom: 12px;">😋</div>
+            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--primary-color); margin-bottom: 10px; letter-spacing: -0.3px;">愛地球・美味提醒</h3>
+            <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; font-weight: 500;">
+              您所救援的是<strong>優質即期剩食</strong>。☕️<br>
+              為了您的健康與最佳風味，<br>
+              <span style="color: #e65100; font-weight: 700;">請於購買後「儘快食用完畢」！</span><br>
+              請避免長時間存放或隔夜食用喔！💚
+            </p>
+            <button class="btn btn-primary btn-block" style="border-radius: 12px; font-weight: 700; padding: 12px;" onclick="document.getElementById('food-safety-modal').remove()">
+              我知道了，美味開動！
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modalDiv);
+
       /* Build success screen */
       const pickupCode = escapeHtml(result.pickupCode || result.pickup_code || order.pickupCode || order.pickup_code || '');
 
