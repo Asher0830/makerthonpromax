@@ -658,7 +658,13 @@ class TabletApp {
   _generatePaymentQR() {
     const target = document.getElementById('qr-target');
     if (!target || !this.currentOrder) return;
-    const url = `${window.location.origin}/mobile/#/consumer/pay/${this.currentOrder.orderId}`;
+    
+    let origin = window.location.origin;
+    // 如果在本機以 localhost 測試，自動替換為區域網路 LAN IP 讓手機可以連線
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      origin = 'http://10.71.71.65:3000';
+    }
+    const url = `${origin}/mobile/#/consumer/pay/${this.currentOrder.orderId}`;
     
     try {
       if (typeof QRCode !== 'undefined') {
@@ -684,7 +690,13 @@ class TabletApp {
   _generatePairQR() {
     const target = document.getElementById('pair-qr-target');
     if (!target) return;
-    const url = `${window.location.origin}/mobile/#/store/pair?token=${this.pairToken}`;
+    
+    let origin = window.location.origin;
+    // 如果在本機以 localhost 測試，自動替換為區域網路 LAN IP 讓手機可以連線
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      origin = 'http://10.71.71.65:3000';
+    }
+    const url = `${origin}/mobile/#/store/pair?token=${this.pairToken}`;
     
     try {
       if (typeof QRCode !== 'undefined') {
