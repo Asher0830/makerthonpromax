@@ -43,6 +43,17 @@ class Router {
             }
         }
 
+        // --- 銷毀 PixiJS 畫布以防記憶體洩漏 ---
+        if (window.petGameInstance) {
+            try {
+                window.petGameInstance.destroy();
+                window.petGameInstance = null;
+                console.log('[寵物遊戲] PixiJS 畫布與遊戲實例已銷毀');
+            } catch (err) {
+                console.warn('[警告] 銷毀寵物遊戲實例異常:', err);
+            }
+        }
+
         let hash = location.hash.slice(1) || '/';
 
         // Strip query string for matching but keep it accessible
@@ -101,7 +112,19 @@ function renderPage(html) {
     if (!app) return;
     app.innerHTML = html;
     const page = app.querySelector('.page');
-    if (page) page.classList.add('page-enter');
+    if (page) {
+        page.classList.add('page-enter');
+        if (page.classList.contains('pet-page') || page.id === 'pet-page-container') {
+            document.body.classList.add('pet-mode');
+            app.classList.add('pet-mode');
+        } else {
+            document.body.classList.remove('pet-mode');
+            app.classList.remove('pet-mode');
+        }
+    } else {
+        document.body.classList.remove('pet-mode');
+        app.classList.remove('pet-mode');
+    }
 }
 
 // --- Update Bottom Navigation ---
@@ -233,6 +256,7 @@ router.add('/consumer/store/:id', renderConsumerStorePage);
 router.add('/consumer/pay/:orderId', renderConsumerPayPage);
 router.add('/consumer/orders', renderConsumerOrdersPage);
 router.add('/consumer/points', renderConsumerPointsPage);
+router.add('/consumer/pet', renderConsumerPetPage);
 router.add('/consumer/scan', renderConsumerScanPage);
 router.add('/store/dashboard', renderStoreDashboardPage);
 router.add('/store/add-item', renderStoreAddItemPage);

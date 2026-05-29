@@ -1,0 +1,770 @@
+/* ==========================================================================
+   惜食小幫手 — 虛擬寵物養成系統 Impeccable Neo Kinpaku Scoped Styling
+   ========================================================================== */
+
+/* 匯入 Impeccable 專屬 Google 雙字型家族：Alumni Sans, Alumni Sans Pinstripe, Albert Sans */
+@import url('https://fonts.googleapis.com/css2?family=Albert+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Alumni+Sans+Pinstripe&family=Alumni+Sans:wght@300;400;500;600;700&family=SF+Mono-Regular&display=swap');
+
+/* ==========================================================================
+   Viewport Lock for Pet System (徹底消除向下滑動空白 Bug)
+   ========================================================================== */
+body.pet-mode, html.pet-mode {
+    overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
+    height: 100% !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    overscroll-behavior: none !important;
+}
+
+#app.pet-mode {
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+    overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
+    height: 100% !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    overscroll-behavior: none !important;
+}
+
+#pet-page-container.pet-page {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+    background: #020304 !important;
+    overscroll-behavior: none !important;
+}
+
+#pet-page-container,
+.pet-page,
+#modal-feed,
+#modal-play,
+#modal-shop {
+    /* Brand Anchors */
+    --kinpaku-gold: oklch(84% 0.19 80.46);       /* 主品牌金箔 */
+    --verdigris-patina: oklch(70% 0.12 188);     /* 銅綠狀態綠 */
+    
+    /* Surfaces */
+    --lacquer-black: oklch(7% 0.006 95);         /* 頁面漆黑底色 */
+    --lacquer-deep: oklch(4% 0.004 95);          /* 最深內凹背景 */
+    --raised-lacquer: oklch(11% 0.006 95);       /* 面板與輸入框浮出 */
+    --graphite: oklch(15% 0.008 95);             /* 停用狀態灰色 */
+    --graphite-2: oklch(19% 0.008 95);           /* 較淺灰 */
+    
+    /* Text */
+    --champagne: oklch(91% 0 0);                 /* 標題香檳白 */
+    --text-warm: oklch(88% 0 0);                 /* 內文溫潤白 */
+    --text-muted: oklch(72% 0 0);                /* 說明副文本 */
+    --text-faint: oklch(62% 0 0);                /* 微弱字體 */
+    --text-mute-deep: oklch(52% 0 0);            /* 禁用字體 */
+    
+    /* Gold Ramp */
+    --kinpaku-pale: oklch(86% 0.07 84);          /* 懸停提亮金 */
+    --kinpaku-rich: oklch(77% 0.13 82);          /* 點擊金 */
+    --kinpaku-deep: oklch(61% 0.085 78);         /* 框線金 */
+    --gold-hairline: oklch(78% 0 0 / 0.16);      /* 預設極細線 */
+    --gold-hairline-strong: oklch(74% 0.09 82 / 0.6); /* 啟動線 */
+    
+    /* Patina Ramp */
+    --patina-pale: oklch(82% 0.07 188);          /* 懸停綠 */
+    --patina-deep: oklch(49% 0.08 188);          /* 深色 Patina 綠 */
+    
+    /* State */
+    --vermilion-warning: oklch(58% 0.15 35);     /* 朱紅警告色 */
+    
+    /* Fonts */
+    --font-wordmark: "Alumni Sans", sans-serif;
+    --font-display: "Alumni Sans Pinstripe", "Alumni Sans", sans-serif;
+    --font-title: "Albert Sans", system-ui, sans-serif;
+    --font-body: "Albert Sans", system-ui, sans-serif;
+    --font-mono: "SFMono-Regular", Consolas, monospace;
+
+    /* Cooldown and Bar colors */
+    --color-fullness: #ff3d00;
+    --color-happiness: #00b0ff;
+    --color-exp: #aa00ff;
+
+    --shadow-premium: 0 10px 30px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(212, 163, 89, 0.05);
+}
+
+/* ==========================================================================
+   遊戲主頁面 (Impeccable Game Screen)
+   ========================================================================== */
+.game-header-bar {
+    height: 54px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    background: var(--lacquer-deep);
+    border-bottom: 1px solid var(--gold-hairline);
+    z-index: 100;
+}
+
+.pet-page .user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pet-page .user-icon {
+    font-size: 14px;
+}
+
+.pet-page .username {
+    font-family: var(--font-wordmark);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--champagne);
+    text-transform: uppercase;
+}
+
+.pet-page .points-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(212, 163, 89, 0.08);
+    border: 1px solid var(--gold-hairline-strong);
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--kinpaku-gold);
+}
+
+/* PixiJS 渲染容器 - 防止內容過大推開 Flexbox */
+.pet-page .canvas-container {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    background: var(--lacquer-deep);
+    overflow: hidden;
+    min-height: 260px;
+}
+
+#pet-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.pet-page .game-loader {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--lacquer-black);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+    gap: 15px;
+    transition: opacity 0.4s ease, visibility 0.4s;
+}
+
+.pet-page .game-loader.hide {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.pet-page .game-loader p {
+    font-family: var(--font-wordmark);
+    letter-spacing: 0.15em;
+    font-size: 14px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+/* 載入動畫 Spinner */
+.pet-page .spinner {
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--gold-hairline);
+    border-top: 2px solid var(--kinpaku-gold);
+    border-radius: 50%;
+    animation: petSpin 1s linear infinite;
+}
+
+@keyframes petSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 全局彈窗遮罩基礎樣式 (Impeccable Blur Overlays) */
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(4, 6, 8, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* 首次建立寵物對話框 */
+.creator-card {
+    width: 85%;
+    max-width: 320px;
+    background: var(--raised-lacquer);
+    border: 1px solid var(--gold-hairline-strong);
+    border-radius: 6px;
+    padding: 28px 20px;
+    text-align: center;
+    box-shadow: var(--shadow-premium);
+    color: var(--text-warm);
+    font-family: var(--font-body);
+}
+
+.creator-card h2 {
+    font-family: var(--font-title);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--champagne);
+    margin-bottom: 6px;
+}
+
+.creator-card p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+
+.creator-preview {
+    font-size: 80px;
+    margin-bottom: 20px;
+    animation: floatEgg 3s ease-in-out infinite;
+}
+
+@keyframes floatEgg {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-8px) scale(1.05); }
+}
+
+.creator-card .input-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.creator-card .input-group select,
+.creator-card .input-group input {
+    background: var(--lacquer-deep);
+    border: 1px solid var(--gold-hairline);
+    border-radius: 4px;
+    padding: 12px 14px;
+    color: var(--champagne);
+    font-family: var(--font-body);
+    font-size: 14px;
+    transition: all 0.25s ease;
+    width: 100%;
+}
+
+.creator-card .input-group select:focus,
+.creator-card .input-group input:focus {
+    outline: none;
+    border-color: var(--gold-hairline-strong);
+    box-shadow: 0 0 10px rgba(212, 163, 89, 0.15);
+}
+
+/* ==========================================================================
+   精緻按鈕 (Impeccable Primitives)
+   ========================================================================== */
+.pet-page .btn,
+.modal-overlay .btn {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    outline: none;
+    font-family: var(--font-title);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 12px;
+    border-radius: 4px;
+    color: var(--lacquer-deep);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    letter-spacing: 0.05em;
+}
+
+.pet-page .btn-primary,
+.modal-overlay .btn-primary {
+    background: var(--kinpaku-gold);
+    color: #000;
+    font-weight: 600;
+}
+
+.pet-page .btn-primary:hover,
+.modal-overlay .btn-primary:hover {
+    background: var(--kinpaku-pale);
+}
+
+.pet-page .btn-primary:active,
+.modal-overlay .btn-primary:active {
+    transform: scale(0.98);
+}
+
+/* 狀態 HUD 區區 */
+.pet-page .status-hud {
+    background: var(--lacquer-black);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 1px solid var(--gold-hairline);
+}
+
+.pet-page .status-bar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.pet-page .bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.pet-page .bar-label strong {
+    color: var(--champagne);
+    font-size: 12px;
+}
+
+.pet-page .bar-track {
+    height: 8px;
+    background: var(--lacquer-deep);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--gold-hairline);
+}
+
+.pet-page .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    width: 0%;
+}
+
+.pet-page .bar-fill.fullness {
+    background: var(--color-fullness);
+    box-shadow: 0 0 10px rgba(255, 61, 0, 0.3);
+}
+
+.pet-page .bar-fill.happiness {
+    background: var(--color-happiness);
+    box-shadow: 0 0 10px rgba(0, 176, 255, 0.3);
+}
+
+.pet-page .bar-fill.exp {
+    background: var(--color-exp);
+    box-shadow: 0 0 10px rgba(170, 0, 255, 0.3);
+}
+
+/* ==========================================================================
+   底部 Dock 導覽列 (Impeccable Minimal Dock)
+   ========================================================================== */
+.pet-page .action-dock {
+    height: 64px;
+    background: var(--lacquer-deep);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 1px solid var(--gold-hairline);
+    padding-bottom: 4px;
+}
+
+.pet-page .dock-btn {
+    background: none;
+    border: none;
+    outline: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 65px;
+    height: 52px;
+}
+
+.pet-page .dock-btn:hover {
+    color: var(--kinpaku-gold);
+}
+
+.pet-page .dock-btn:active {
+    transform: scale(0.95);
+}
+
+.pet-page .dock-icon {
+    font-size: 20px;
+    margin-bottom: 3px;
+    transition: transform 0.2s ease;
+}
+
+.pet-page .dock-text {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+/* ==========================================================================
+   彈窗與抽屜樣式 (Kinpaku Bottom Drawers)
+   ========================================================================== */
+.bottom-drawer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: 80%;
+    background: var(--raised-lacquer);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-top: 1px solid var(--gold-hairline-strong);
+    padding: 16px 20px 24px 20px;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: var(--shadow-premium);
+    z-index: 210;
+    color: var(--text-warm);
+    font-family: var(--font-body);
+}
+
+.modal-overlay.active .bottom-drawer {
+    transform: translateY(0);
+}
+
+.drawer-handle {
+    width: 40px;
+    height: 4px;
+    background: var(--gold-hairline);
+    border-radius: 2px;
+    margin: -6px auto 14px auto;
+}
+
+.modal-overlay .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--gold-hairline);
+    padding-bottom: 10px;
+}
+
+.modal-overlay .modal-header h2 {
+    font-family: var(--font-title);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--champagne);
+    letter-spacing: 0.02em;
+    margin: 0;
+}
+
+.modal-overlay .btn-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: color 0.2s;
+    margin: 0;
+    padding: 0;
+}
+
+.modal-overlay .btn-close:hover {
+    color: var(--kinpaku-gold);
+}
+
+/* 互動卡片選擇網格 */
+.modal-overlay .options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+#modal-play .options-grid {
+    grid-template-columns: 1fr 1fr;
+}
+
+#modal-play .option-card:last-child {
+    grid-column: span 2;
+}
+
+.modal-overlay .option-card {
+    background: var(--lacquer-deep);
+    border: 1px solid var(--gold-hairline);
+    border-radius: 6px;
+    padding: 16px 12px;
+    text-align: center;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.modal-overlay .option-card:hover {
+    border-color: var(--gold-hairline-strong);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.modal-overlay .option-icon {
+    font-size: 32px;
+    margin-bottom: 6px;
+}
+
+.modal-overlay .option-card h3 {
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--champagne);
+    margin-top: 0;
+    margin-bottom: 4px;
+}
+
+.modal-overlay .option-desc {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.modal-overlay .option-cost {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--kinpaku-gold);
+    margin-top: auto;
+    margin-bottom: 10px;
+    background: rgba(212, 163, 89, 0.08);
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.modal-overlay .option-cost.free {
+    color: var(--verdigris-patina);
+    background: rgba(0, 230, 118, 0.08);
+}
+
+.modal-overlay .btn-action-buy {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px;
+    border-radius: 4px;
+    background: var(--kinpaku-gold);
+    color: #000;
+}
+
+.modal-overlay .btn-action-buy.disabled,
+.modal-overlay .btn-action-buy:disabled {
+    background: var(--graphite);
+    color: var(--text-mute-deep);
+    cursor: not-allowed;
+    border-color: transparent;
+}
+
+/* ==========================================================================
+   裝飾品商店頁面 (Impeccable Shop Layout)
+   ========================================================================== */
+.shop-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--lacquer-deep);
+    padding: 4px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    border: 1px solid var(--gold-hairline);
+}
+
+.shop-tabs .tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-muted);
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin: 0;
+}
+
+.shop-tabs .tab-btn.active {
+    background: var(--raised-lacquer);
+    color: var(--kinpaku-gold);
+    border: 1px solid var(--gold-hairline-strong);
+}
+
+.shop-content-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    max-height: 380px;
+}
+
+/* 自訂捲軸樣式 */
+.shop-content-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+.shop-content-wrapper::-webkit-scrollbar-track {
+    background: var(--lacquer-deep);
+}
+.shop-content-wrapper::-webkit-scrollbar-thumb {
+    background: var(--gold-hairline);
+    border-radius: 3px;
+}
+
+.shop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding-bottom: 20px;
+}
+
+.shop-item-card {
+    background: var(--lacquer-deep);
+    border: 1px solid var(--gold-hairline);
+    border-radius: 6px;
+    padding: 14px 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.shop-item-card:hover {
+    border-color: var(--gold-hairline-strong);
+}
+
+.shop-item-card.locked {
+    opacity: 0.6;
+}
+
+.lock-overlay {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 500;
+    color: var(--vermilion-warning);
+    background: rgba(248, 113, 113, 0.08);
+    padding: 2px 5px;
+    border-radius: 2px;
+}
+
+.shop-item-sprite-preview {
+    font-size: 28px;
+    margin-bottom: 6px;
+}
+
+.shop-item-card h3 {
+    font-family: var(--font-title);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--champagne);
+    margin-top: 0;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.shop-item-card p {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    line-height: 1.3;
+    height: 28px;
+    overflow: hidden;
+}
+
+.shop-item-cost {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--kinpaku-gold);
+    margin-top: auto;
+    margin-bottom: 10px;
+}
+
+.shop-item-cost.owned {
+    color: var(--verdigris-patina);
+}
+
+.btn-shop-action {
+    font-family: var(--font-title);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.2s ease;
+    margin: 0;
+}
+
+.btn-shop-action.buy {
+    background: var(--kinpaku-gold);
+    color: #000;
+}
+
+.btn-shop-action.buy.disabled {
+    background: var(--graphite);
+    color: var(--text-mute-deep);
+    cursor: not-allowed;
+}
+
+.btn-shop-action.equip {
+    background: var(--verdigris-patina);
+    color: #000;
+}
+
+.btn-shop-action.unequip {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--champagne);
+    border: 1px solid var(--gold-hairline);
+}
