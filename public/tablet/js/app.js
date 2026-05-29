@@ -142,10 +142,12 @@ class TabletApp {
     const cells = grid.map((c) => {
       const isWinner = c.number === winnerIndex;
       const isStocked = c.status === 'stocked' && (!c.productStatus || c.productStatus === 'available');
+      const isExpired = c.status === 'stocked' && c.productStatus === 'expired';
       const isDispensed = c.status === 'dispensed';
 
       let cls = 'compartment-slot';
       if (isWinner) cls += ' compartment-slot--winner';
+      else if (isExpired) cls += ' compartment-slot--expired';
       else if (isStocked) cls += ' compartment-slot--stocked';
       else if (isDispensed) cls += ' compartment-slot--dispensed';
       else cls += ' compartment-slot--empty';
@@ -160,6 +162,8 @@ class TabletApp {
       return `
         <div class="${cls}" ${clickHandler} style="${style}">
           <span class="compartment-slot__number">${c.number}</span>
+          ${(isExpired && c.productName) ? `<span class="compartment-slot__product compartment-slot__product--expired">${escapeHtml(c.productName)}</span>` : ''}
+          ${isExpired ? `<span class="compartment-slot__badge compartment-slot__badge--expired">已過期/報銷</span>` : ''}
           ${(isStocked && c.productName) ? `<span class="compartment-slot__product">${escapeHtml(c.productName)}</span>` : ''}
           ${(isStocked && c.price) ? `<span class="compartment-slot__price" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); margin-top: 2px;">$${c.price}</span>` : ''}
         </div>`;
@@ -922,7 +926,7 @@ class TabletApp {
       machineName: status.machineName || this.machineStatus.machineName,
       temperature: status.temperature ?? this.machineStatus.temperature,
       compartments: status.compartments || this.machineStatus.compartments,
-      totalStocked: status.totalStocked ?? (status.compartments || []).filter((c) => c.status === 'stocked').length,
+      totalStocked: status.totalStocked ?? (status.compartments || []).filter((c) => c.status === 'stocked' && (!c.productStatus || c.productStatus === 'available')).length,
       averagePrice: status.averagePrice ?? this.machineStatus.averagePrice,
     };
 

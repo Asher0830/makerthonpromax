@@ -195,4 +195,48 @@ debug.post('/machine/unlock', async (c) => {
     return c.json({ success: true, message: `機台 ${machineId} 已強制解鎖回 IDLE（前狀態：${machine.status}）` });
 });
 
+// 10. POST /products/expire-test — 快速將某一艙位的商品設為過期以進行測試
+debug.post('/products/expire-test', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const { machineId = 'MAC_01A2B3', indexNum = 1 } = body;
+
+    const compartment = queryFirst(
+        'SELECT * FROM compartments WHERE machine_id = ? AND index_num = ?',
+        [machineId, parseInt(indexNum)]
+    );
+
+    if (!compartment) {
+        return c.json({ success: false, error: '找不到艙位' }, 404);
+    }
+
+    let productId = compartment.product_id;
+
+    if (!productId) {
+        // 如果為空，先隨便建一個商品並放入
+        transaction(() => {
+            const res = query(
+                `INSERT INTO products (store_id, name, category, original_price, selling_price, source, status, expires_at)
+                 VALUES (1, '測試過期便當', 'bento', 120, 60, 'machine', 'AVAILABLE', datetime('now', '-1 minute'))`
+            );
+            productId = Number(res.meta.last_row_id);
+            query(
+                "UPDATE compartments SET status = 'STOCKED', product_id = ?, stocked_at = datetime('now') WHERE id = ?",
+                [productId, compartment.id]
+            );
+        });
+    } else {
+        // 如果已有商品，直接將其 expires_at 設為過期
+        query(
+            "UPDATE products SET expires_at = datetime('now', '-1 minute'), status = 'AVAILABLE' WHERE id = ?",
+            [productId]
+        );
+    }
+
+    return c.json({ 
+        success: true, 
+        message: `艙位 ${indexNum} 的商品 (ID: ${productId}) 已設為已過期 (過期時間已設為 1 分鐘前)`,
+        productId
+    });
+});
+
 export default debug;

@@ -62,12 +62,28 @@ async function renderStoreMachinePage(machineId) {
             const category = (typeof product === 'object' && product.category) ? product.category : '';
             const categoryLabels = { bento: '便當', bread: '麵包', vegetable: '蔬菜', other: '其他' };
             const categoryText = categoryLabels[category] || category || '';
+            const isExpired = comp.product_status === 'EXPIRED';
+
+            if (isExpired) {
+                return `
+                    <div class="compartment-card occupied" style="border-color: rgba(239, 83, 80, 0.4); background: rgba(239, 83, 80, 0.04);">
+                        <div class="compartment-number" style="color: #ff5252;">格 ${num} (已過期)</div>
+                        <div class="compartment-product" style="text-decoration: line-through; opacity: 0.7;">${productName}</div>
+                        <div style="display: flex; gap: 6px; margin-top: 8px; justify-content: center; align-items: center; width: 100%;">
+                            <span class="category-badge" style="background: rgba(239, 83, 80, 0.15); color: #ff5252; border: 1px solid rgba(239, 83, 80, 0.2); margin: 0;">已過期/報銷</span>
+                        </div>
+                        <button class="btn btn-sm" style="margin-top: 8px; background: #ff5252; color: #fff; width: 100%; border: none;" onclick="clearCompartmentFromMachine('${machineId}', ${num})">報銷清除</button>
+                    </div>
+                `;
+            }
 
             return `
                 <div class="compartment-card occupied">
                     <div class="compartment-number">格 ${num}</div>
                     <div class="compartment-product">${productName}</div>
-                    ${categoryText ? `<span class="category-badge">${categoryText}</span>` : ''}
+                    <div style="display: flex; gap: 6px; margin-top: 8px; justify-content: center; align-items: center; width: 100%;">
+                        ${categoryText ? `<span class="category-badge" style="margin: 0;">${categoryText}</span>` : ''}
+                    </div>
                 </div>
             `;
         } else {
@@ -269,6 +285,23 @@ async function renderStoreMachinePage(machineId) {
         } catch (err) {
             hideLoading();
             showToast(err.message || '放入失敗', 'error');
+        }
+    };
+
+    window.clearCompartmentFromMachine = async function(mId, compartmentNumber) {
+        if (!confirm(`確定要報銷並清空格位 ${compartmentNumber} 嗎？此動作會同時解鎖實體門扉讓您取出商品。`)) {
+            return;
+        }
+        try {
+            showLoading();
+            await api.clearCompartment(mId, compartmentNumber);
+            hideLoading();
+            showToast(`已成功報銷並清空艙位 ${compartmentNumber}，門扉已彈開`, 'success');
+            // Re-render the machine page
+            renderStoreMachinePage(mId);
+        } catch (err) {
+            hideLoading();
+            showToast(err.message || '報銷清除失敗', 'error');
         }
     };
 

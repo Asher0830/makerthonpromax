@@ -823,6 +823,48 @@ machines.post('/:machineId/compartments/:index/stock', requireAuth(), requireRol
 });
 
 // ============================================
+// 9.2. POST /:machineId/compartments/:index/clear — 清空艙位/報銷清除（店家）
+// ============================================
+machines.post('/:machineId/compartments/:index/clear', requireAuth(), requireRole('store_owner'), async (c) => {
+    const { machineId, index } = c.req.param();
+    const user = c.get('user');
+
+    // 確認艙位存在
+    const compartment = queryFirst(
+        `SELECT * FROM compartments WHERE machine_id = ? AND index_num = ?`,
+        [machineId, parseInt(index)]
+    );
+
+    if (!compartment) {
+        return error(c, 'COMPARTMENT_NOT_FOUND', '找不到此艙位', 404);
+    }
+
+    transaction(() => {
+        // 如果該艙位有商品，將該商品狀態改為 EXPIRED（報銷）
+        if (compartment.product_id) {
+            query(
+                `UPDATE products SET status = 'EXPIRED', updated_at = datetime('now') 
+                 WHERE id = ? AND status = 'AVAILABLE'`,
+                [compartment.product_id]
+            );
+        }
+
+        // 清空該艙位
+        query(
+            `UPDATE compartments 
+             SET status = 'EMPTY', product_id = NULL, stocked_at = NULL, stocked_by = NULL
+             WHERE id = ?`,
+            [compartment.id]
+        );
+    });
+
+    // 發送實體開門指令，讓店家開門取出商品
+    await sendOpenDoor(machineId, parseInt(index), `clear_${compartment.id}`);
+
+    return success(c, { message: '艙位已清空，實體門已解鎖開啟' });
+});
+
+// ============================================
 // 9.5. GET /:machineId/pop-command — ESP32 HTTP 輪詢取得待執行指令
 //      取代 MQTT 推送機制，ESP32 每秒呼叫此端點檢查是否有開門指令
 // ============================================

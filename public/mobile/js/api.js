@@ -74,6 +74,9 @@ class ApiClient {
     stockCompartment(machineId, compartmentIndex, productId) {
         return this.request('POST', `/api/v1/machines/${machineId}/compartments/${compartmentIndex}/stock`, { product_id: productId });
     }
+    clearCompartment(machineId, compartmentIndex) {
+        return this.request('POST', `/api/v1/machines/${machineId}/compartments/${compartmentIndex}/clear`);
+    }
     getMachineStatus(machineId) { return this.request('GET', `/api/v1/machines/${machineId}/status`); }
 
     // Orders

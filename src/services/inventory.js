@@ -108,7 +108,27 @@ export function processTimeouts() {
         console.log(`[TIMEOUT] 共處理 ${timedOut.length} 筆超時/未付款釋放`);
     }
 
-    return timedOut.length;
+    // 自動過期商品處理 (expires_at 小於當前時間且狀態為 AVAILABLE)
+    const nowLocal = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const { results: expiredProducts } = query(`
+        SELECT id, name, expires_at 
+        FROM products 
+        WHERE status = 'AVAILABLE' 
+          AND expires_at IS NOT NULL 
+          AND expires_at < ?
+    `, [nowLocal]);
+
+    for (const prod of expiredProducts) {
+        transaction(() => {
+            query(
+                `UPDATE products SET status = 'EXPIRED', updated_at = datetime('now') WHERE id = ?`,
+                [prod.id]
+            );
+            console.log(`[EXPIRATION] 商品 #${prod.id} (${prod.name}) 已到期自動報銷 (過期時間: ${prod.expires_at})`);
+        });
+    }
+
+    return timedOut.length + expiredProducts.length;
 }
 
 /**
