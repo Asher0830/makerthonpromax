@@ -420,9 +420,11 @@ async function renderConsumerPetPage() {
   });
 
   // 11. 渲染商店物品
-  async function renderShop(activeTab) {
+  async function renderShop(activeTab, skipSpinner = false) {
     const container = document.getElementById('shop-items-container');
-    container.innerHTML = '<div style="grid-column: span 2; display: flex; flex-direction: column; align-items: center; padding: 24px; color: var(--text-muted);"><div class="spinner"></div><p style="margin-top: 10px;">商店開啟中...</p></div>';
+    if (!skipSpinner) {
+      container.innerHTML = '<div style="grid-column: span 2; display: flex; flex-direction: column; align-items: center; padding: 24px; color: var(--text-muted);"><div class="spinner"></div><p style="margin-top: 10px;">商店開啟中...</p></div>';
+    }
 
     try {
       const shopData = await window.petApi.getShop();
@@ -482,7 +484,7 @@ async function renderConsumerPetPage() {
             if (window.petGameInstance) {
               await window.petGameInstance.syncStatus();
             }
-            await renderShop(activeTab);
+            await renderShop(activeTab, true); // skip spinner for instant feedback!
           } catch (err) {
             showToast(err.message, 'error');
             btn.disabled = false;
@@ -505,7 +507,7 @@ async function renderConsumerPetPage() {
             if (window.petGameInstance) {
               await window.petGameInstance.syncStatus();
             }
-            await renderShop(activeTab);
+            await renderShop(activeTab, true); // skip spinner for instant feedback!
           } catch (err) {
             showToast(err.message, 'error');
             btn.disabled = false;
