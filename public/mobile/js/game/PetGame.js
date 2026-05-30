@@ -11,8 +11,12 @@ export class PetGame {
         
         // 遊戲精靈物件
         this.background = null;
+        this.roomGraphics = null;
         this.pet = null;
         this.hat = null;
+        this.hatEmoji = null;
+        this.accEmoji = null;
+        this.ambientTimer = 0;
         
         // 狀態快取
         this.petData = null;
@@ -53,32 +57,14 @@ export class PetGame {
         const screenWidth = this.app.screen.width;
         const screenHeight = this.app.screen.height;
 
-        // 1. 繪製精緻的扁平 2D 溫馨客廳背景 (Flat Cozy Room, No Isometric)
+        // 1. 建立背景 Container 與 Graphics
         this.background = new PIXI.Container();
-        const roomGraphics = new PIXI.Graphics();
-        
-        // (A) 溫馨米黃色牆壁
-        roomGraphics.rect(0, 0, screenWidth, screenHeight).fill({ color: '#FFF3E0' });
-        
-        // (B) 溫馨實木地板
-        const floorY = screenHeight - 140;
-        roomGraphics.rect(0, floorY, screenWidth, 140).fill({ color: '#8D6E63' });
-        
-        // 地板木紋木板線
-        roomGraphics.rect(0, floorY, screenWidth, 4).fill({ color: '#5D4037' }); // 踢腳板
-        for (let i = 1; i <= 5; i++) {
-            const lineY = floorY + i * 26;
-            roomGraphics.rect(0, lineY, screenWidth, 1).fill({ color: '#6D4C41' });
-        }
-        
-        // (D) 地板上溫馨的橙黃色編織地毯
-        const rugX = screenWidth / 2;
-        const rugY = screenHeight - 45;
-        roomGraphics.ellipse(rugX, rugY, 85, 22).fill({ color: '#FFB74D' }); // 內圈地毯
-        roomGraphics.ellipse(rugX, rugY, 85, 22).stroke({ color: '#FFA726', width: 3 }); // 外圈編織邊
-        
-        this.background.addChild(roomGraphics);
+        this.roomGraphics = new PIXI.Graphics();
+        this.background.addChild(this.roomGraphics);
         this.app.stage.addChild(this.background);
+
+        // 繪製初始背景
+        this.drawBackground();
 
         // 2. 建立寵物精靈 (0.38 比例，往上移至地毯中央，完美站立於溫馨房間)
         this.pet = new PIXI.Sprite();
@@ -96,6 +82,18 @@ export class PetGame {
         this.hat.visible = false;
         this.app.stage.addChild(this.hat);
 
+        // 建立帽子 Emoji 文字型裝飾
+        this.hatEmoji = new PIXI.Text({ text: '', style: { fontSize: 48 } });
+        this.hatEmoji.anchor.set(0.5);
+        this.hatEmoji.visible = false;
+        this.app.stage.addChild(this.hatEmoji);
+
+        // 建立配件 Emoji 文字型裝飾
+        this.accEmoji = new PIXI.Text({ text: '', style: { fontSize: 36 } });
+        this.accEmoji.anchor.set(0.5);
+        this.accEmoji.visible = false;
+        this.app.stage.addChild(this.accEmoji);
+
         // 4. 啟用呼吸動畫主循環 (動態計算 Y 軸，移動到 Y - 150)
         this.app.ticker.add((ticker) => {
             const time = Date.now();
@@ -107,28 +105,79 @@ export class PetGame {
             // 固定縮放比例 0.38，完全取消拉伸變形
             this.pet.scale.set(0.38);
 
-            // 帽子的位置與縮放比例緊緊跟隨寵物移動，不產生變形，且針對不同動物比例進行精緻校正！
+            // 帽子的位置與縮放比例緊緊跟隨寵物移動
             if (this.hat.visible) {
                 this.hat.x = this.pet.x;
-                
-                // 依據不同寵物種類 (bunny, dog, cat) 動態調整帽子高度與縮放比
                 const species = this.petData ? this.petData.species : 'bunny';
                 let hatScale = 0.15;
                 let hatOffsetY = -155; // 預設值
  
                 if (species === 'bunny') {
                     hatScale = 0.14;
-                    hatOffsetY = -148; // 稍微蓋住兔耳底部，看起來最自然
+                    hatOffsetY = -148;
                 } else if (species === 'dog') {
                     hatScale = 0.15;
-                    hatOffsetY = -168; // 緊貼柴犬頭頂
+                    hatOffsetY = -168;
                 } else if (species === 'cat') {
                     hatScale = 0.145;
-                    hatOffsetY = -153; // 緊貼貓咪頭頂
+                    hatOffsetY = -153;
                 }
  
                 this.hat.y = this.pet.y + hatOffsetY; 
                 this.hat.scale.set(hatScale);
+            }
+
+            // 帽子 Emoji 的位置與縮放
+            if (this.hatEmoji.visible) {
+                this.hatEmoji.x = this.pet.x;
+                const species = this.petData ? this.petData.species : 'bunny';
+                let hatOffsetY = -150;
+                let emojiScale = 1.0;
+
+                if (species === 'bunny') {
+                    hatOffsetY = -140;
+                    emojiScale = 0.95;
+                } else if (species === 'dog') {
+                    hatOffsetY = -160;
+                    emojiScale = 1.05;
+                } else if (species === 'cat') {
+                    hatOffsetY = -148;
+                    emojiScale = 1.0;
+                }
+
+                this.hatEmoji.y = this.pet.y + hatOffsetY;
+                this.hatEmoji.scale.set(emojiScale);
+            }
+
+            // 配件 Emoji 的位置與縮放
+            if (this.accEmoji.visible) {
+                this.accEmoji.x = this.pet.x;
+                const species = this.petData ? this.petData.species : 'bunny';
+                const isGlasses = this.equippedItemIds.has(9);
+                let accOffsetY = -50;
+
+                if (isGlasses) {
+                    if (species === 'bunny') accOffsetY = -95;
+                    else if (species === 'dog') accOffsetY = -105;
+                    else if (species === 'cat') accOffsetY = -92;
+                } else {
+                    if (species === 'bunny') accOffsetY = -45;
+                    else if (species === 'dog') accOffsetY = -55;
+                    else if (species === 'cat') accOffsetY = -48;
+                }
+
+                this.accEmoji.y = this.pet.y + accOffsetY;
+            }
+
+            // 特效粒子生成 (每 45 幀產生一次)
+            this.ambientTimer = (this.ambientTimer || 0) + 1;
+            if (this.ambientTimer >= 45) {
+                this.ambientTimer = 0;
+                if (this.equippedItemIds.has(10)) {
+                    this.spawnAmbientParticle('💖');
+                } else if (this.equippedItemIds.has(11)) {
+                    this.spawnAmbientParticle('✨');
+                }
             }
         });
 
@@ -173,26 +222,152 @@ export class PetGame {
         }
     }
 
-    // 依據飽食度/心情/裝備動態變更精靈紋理
+    // 依據飽食度/心情/裝備動態變更精靈紋理與背景特效
     updatePetAppearance() {
         if (!this.petData) return;
 
         this.pet.visible = true;
         const speciesPrefix = this.petData.species === 'dog' ? 'dog' : (this.petData.species === 'cat' ? 'cat' : 'bunny');
 
-        // 1. 裝飾帽子渲染 (ID 2 為廚師帽，未來可依靜態表的 sprite_key 擴充)
+        // 1. 裝飾背景重繪
+        this.drawBackground();
+
+        // 2. 裝飾帽子/頭部裝飾渲染
+        this.hat.visible = false;
+        if (this.hatEmoji) this.hatEmoji.visible = false;
+
         if (this.equippedItemIds.has(2)) {
+            // 廚師帽
             this.hat.visible = true;
-        } else {
-            this.hat.visible = false;
+        } else if (this.equippedItemIds.has(1)) {
+            // 貝雷帽
+            if (this.hatEmoji) {
+                this.hatEmoji.text = '🎓';
+                this.hatEmoji.visible = true;
+            }
+        } else if (this.equippedItemIds.has(3)) {
+            // 皇家皇冠
+            if (this.hatEmoji) {
+                this.hatEmoji.text = '👑';
+                this.hatEmoji.visible = true;
+            }
         }
 
-        // 2. 寵物表情變化 (飽食度或心情太低時顯示飢餓/難過表情)
+        // 3. 配件渲染
+        if (this.accEmoji) {
+            this.accEmoji.visible = false;
+            if (this.equippedItemIds.has(7)) {
+                // 可愛蝴蝶結
+                this.accEmoji.text = '🎀';
+                this.accEmoji.visible = true;
+            } else if (this.equippedItemIds.has(8)) {
+                // 環保圍裙
+                this.accEmoji.text = '🎽';
+                this.accEmoji.visible = true;
+            } else if (this.equippedItemIds.has(9)) {
+                // 酷炫墨鏡
+                this.accEmoji.text = '🕶️';
+                this.accEmoji.visible = true;
+            }
+        }
+
+        // 4. 寵物表情變化 (飽食度或心情太低時顯示飢餓/難過表情)
         if (this.petData.fullness < 20 || this.petData.happiness < 20) {
             this.pet.texture = PIXI.Texture.from(`${speciesPrefix}_hungry`);
         } else {
             this.pet.texture = PIXI.Texture.from(`${speciesPrefix}_idle`);
         }
+    }
+
+    // 動態繪製多樣化背景
+    drawBackground() {
+        if (!this.roomGraphics || !this.app) return;
+        const screenWidth = this.app.screen.width;
+        const screenHeight = this.app.screen.height;
+        
+        this.roomGraphics.clear();
+        
+        let wallColor = '#FFF3E0';
+        let floorColor = '#8D6E63';
+        let boardColor = '#5D4037';
+        let lineColor = '#6D4C41';
+        let rugColor = '#FFB74D';
+        let rugStroke = '#FFA726';
+        let isSpace = false;
+        
+        if (this.equippedItemIds.has(5)) {
+            // 綠意公園 (ID 5)
+            wallColor = '#E3F2FD'; // 天空藍
+            floorColor = '#81C784'; // 草地綠
+            boardColor = '#4CAF50';
+            lineColor = '#66BB6A';
+            rugColor = '#C8E6C9';
+            rugStroke = '#A5D6A7';
+        } else if (this.equippedItemIds.has(6)) {
+            // 璀璨星空 (ID 6)
+            wallColor = '#0A0E1A'; // 深邃夜空
+            floorColor = '#1A237E'; // 藍色銀河地板
+            boardColor = '#0D47A1';
+            lineColor = '#1565C0';
+            rugColor = '#3F51B5';
+            rugStroke = '#5C6BC0';
+            isSpace = true;
+        }
+        
+        // 繪製牆壁
+        this.roomGraphics.rect(0, 0, screenWidth, screenHeight).fill({ color: wallColor });
+        
+        // 如果是太空，繪製璀璨星辰
+        if (isSpace) {
+            for (let i = 0; i < 15; i++) {
+                const x = (i * 97 + 37) % screenWidth;
+                const y = (i * 123 + 29) % (screenHeight - 150);
+                const size = (i % 3) + 1.5;
+                this.roomGraphics.circle(x, y, size).fill({ color: '#FFFDE7', alpha: 0.7 });
+            }
+        }
+        
+        // 繪製地板
+        const floorY = screenHeight - 140;
+        this.roomGraphics.rect(0, floorY, screenWidth, 140).fill({ color: floorColor });
+        
+        // 踢腳板與木板線
+        this.roomGraphics.rect(0, floorY, screenWidth, 4).fill({ color: boardColor });
+        for (let i = 1; i <= 5; i++) {
+            const lineY = floorY + i * 26;
+            this.roomGraphics.rect(0, lineY, screenWidth, 1).fill({ color: lineColor });
+        }
+        
+        // 地毯
+        const rugX = screenWidth / 2;
+        const rugY = screenHeight - 45;
+        this.roomGraphics.ellipse(rugX, rugY, 85, 22).fill({ color: rugColor });
+        this.roomGraphics.ellipse(rugX, rugY, 85, 22).stroke({ color: rugStroke, width: 3 });
+    }
+
+    // 生成環境特效粒子
+    spawnAmbientParticle(char) {
+        if (!this.pet || !this.pet.visible || !this.app) return;
+        const particle = new PIXI.Text({ text: char, style: { fontSize: 18 } });
+        particle.anchor.set(0.5);
+        const side = Math.random() > 0.5 ? 1 : -1;
+        particle.x = this.pet.x + side * (40 + Math.random() * 40);
+        particle.y = this.pet.y - 20;
+        particle.alpha = 0.8;
+        this.app.stage.addChild(particle);
+        
+        gsap.to(particle, {
+            y: particle.y - 80 - Math.random() * 40,
+            x: particle.x + (Math.random() - 0.5) * 30,
+            alpha: 0,
+            duration: 1.5 + Math.random() * 0.8,
+            ease: 'sine.out',
+            onComplete: () => {
+                if (this.app && this.app.stage) {
+                    this.app.stage.removeChild(particle);
+                }
+            }
+        });
     }
 
     // 播放餵食動畫效果

@@ -366,8 +366,7 @@ async function renderConsumerPetPage() {
         btn.textContent = originalText;
         
         if (window.petGameInstance) {
-          // Sync HUD instantly in parallel to avoid visual lag!
-          window.petGameInstance.syncStatus();
+          await window.petGameInstance.syncStatus();
           await window.petGameInstance.playFeedAnimation(feedType);
         }
       } catch (err) {
@@ -397,8 +396,7 @@ async function renderConsumerPetPage() {
         btn.textContent = originalText;
         
         if (window.petGameInstance) {
-          // Sync HUD instantly in parallel to avoid visual lag!
-          window.petGameInstance.syncStatus();
+          await window.petGameInstance.syncStatus();
           await window.petGameInstance.playPlayAnimation(playType);
         }
       } catch (err) {
@@ -482,9 +480,9 @@ async function renderConsumerPetPage() {
             showToast('道具購買成功！已放入背包！🛍️', 'success');
             
             if (window.petGameInstance) {
-              window.petGameInstance.syncStatus();
+              await window.petGameInstance.syncStatus();
             }
-            renderShop(activeTab);
+            await renderShop(activeTab);
           } catch (err) {
             showToast(err.message, 'error');
             btn.disabled = false;
@@ -505,9 +503,9 @@ async function renderConsumerPetPage() {
             showToast(isEquip ? '裝備成功！' : '已卸下裝飾！', 'success');
             
             if (window.petGameInstance) {
-              window.petGameInstance.syncStatus();
+              await window.petGameInstance.syncStatus();
             }
-            renderShop(activeTab);
+            await renderShop(activeTab);
           } catch (err) {
             showToast(err.message, 'error');
             btn.disabled = false;
@@ -612,7 +610,7 @@ async function renderConsumerPetPage() {
       }
 
       // 動態載入 PetGame.js
-      const { PetGame } = await import('/mobile/js/game/PetGame.js?v=6');
+      const { PetGame } = await import('/mobile/js/game/PetGame.js?v=7');
       const game = new PetGame('pet-canvas');
       window.petGameInstance = game;
       
