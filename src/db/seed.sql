@@ -242,3 +242,10 @@ INSERT OR IGNORE INTO pet_shop_items (id, name, category, cost, sprite_key, min_
 (10, '愛心泡泡', 'effect', 50, 'eff_hearts', 5, '周圍飄散著溫暖的粉紅色愛心泡泡。'),
 (11, '璀璨星星', 'effect', 120, 'eff_stars', 12, '閃耀著金色光芒的璀璨星光環繞效果。');
 
+-- 確保每次重啟載入 seed 時，開發環境中的所有機台商品都被重設為 AVAILABLE 且重新延期，防範測試期間已售出或過期的商品導致艙位與商品池不一致
+UPDATE products SET status = 'AVAILABLE', expires_at = datetime('now', '+3 hours') WHERE id >= 301 AND id <= 312;
+UPDATE products SET status = 'AVAILABLE', expires_at = datetime('now', '+3 hours') WHERE id >= 101 AND id <= 106;
+UPDATE products SET status = 'AVAILABLE', expires_at = datetime('now', '+3 hours') WHERE id >= 201 AND id <= 206;
+UPDATE products SET status = 'AVAILABLE', expires_at = datetime('now', '+2 hours') WHERE id >= 1 AND id <= 20;
+
+
