@@ -178,16 +178,14 @@ INSERT OR IGNORE INTO product_allergens (product_id, allergen) VALUES
 -- 高雄1站 完整 12 項機台商品過敏原 (301-312)
 (301, 'seafood'), (301, 'soy'),
 (302, 'wheat'), (302, 'milk'), (302, 'egg'),
-(303, 'sulfite'),
 (304, 'beef'), (304, 'pork'), (304, 'soy'), (304, 'wheat'), (304, 'egg'),
 (305, 'pork'), (305, 'wheat'), (305, 'egg'), (305, 'soy'),
 (306, 'wheat'), (306, 'milk'), (306, 'egg'),
-(307, 'pork'), (307, 'egg'), (307, 'soy'), (307, 'fish_sauce'),
+(307, 'pork'), (307, 'egg'), (307, 'soy'), (307, 'seafood'),
 (308, 'wheat'), (308, 'egg'), (308, 'milk'),
 (309, 'sesame'),
 (310, 'chicken'), (310, 'soy'), (310, 'wheat'), (310, 'sesame'),
-(311, 'wheat'), (311, 'milk'),
-(312, 'corn');
+(311, 'wheat'), (311, 'milk');
 
 -- 把 12 個機台商品放入艙位（全面補滿補貨！）
 UPDATE compartments SET status = 'STOCKED', product_id = 301, stocked_at = datetime('now'), stocked_by = 1 WHERE machine_id = 'MAC_01A2B3' AND index_num = 1;
