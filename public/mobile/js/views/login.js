@@ -3,6 +3,75 @@
    ═══════════════════════════════════════════════════ */
 
 async function renderLoginPage() {
+  /* Check if dynamic login parameters (token or email/password) are provided in the URL query string */
+  const hash = location.hash;
+  const qIndex = hash.indexOf('?');
+  if (qIndex >= 0) {
+    const searchParams = new URLSearchParams(hash.substring(qIndex));
+    const token = searchParams.get('token');
+    const email = searchParams.get('email');
+    const password = searchParams.get('password');
+
+    if (token) {
+      try {
+        showLoading();
+        // 1. Temporarily save token
+        localStorage.setItem('token', token);
+        
+        // 2. Fetch user information from server to validate token
+        const userData = await api.request('GET', '/api/v1/auth/me');
+        
+        // 3. Save user information to complete login
+        localStorage.setItem('user', JSON.stringify(userData.user));
+        
+        showToast('自動登入成功！🔑', 'success');
+        hideLoading();
+        
+        // 4. Redirect
+        const redirectHash = localStorage.getItem('redirect_after_login');
+        if (redirectHash) {
+          localStorage.removeItem('redirect_after_login');
+          location.hash = redirectHash;
+        } else if (authManager.isStoreOwner()) {
+          router.navigate('/store/dashboard');
+        } else {
+          router.navigate('/consumer/home');
+        }
+        return;
+      } catch (err) {
+        // Clear stale storage if authentication fails
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        hideLoading();
+        showToast(`自動登入失敗: ${err.message}`, 'error');
+      }
+    } else if (email && password) {
+      try {
+        showLoading();
+        // Call existing login method
+        await authManager.login(email, password);
+        
+        showToast('自動登入成功！🔑', 'success');
+        hideLoading();
+        
+        // Redirect
+        const redirectHash = localStorage.getItem('redirect_after_login');
+        if (redirectHash) {
+          localStorage.removeItem('redirect_after_login');
+          location.hash = redirectHash;
+        } else if (authManager.isStoreOwner()) {
+          router.navigate('/store/dashboard');
+        } else {
+          router.navigate('/consumer/home');
+        }
+        return;
+      } catch (err) {
+        hideLoading();
+        showToast(`自動登入失敗: ${err.message}`, 'error');
+      }
+    }
+  }
+
   /* Auto-redirect if already logged in */
   if (authManager.isLoggedIn()) {
     if (authManager.isStoreOwner()) {
