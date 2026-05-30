@@ -5,6 +5,7 @@
 
 import { verifyToken } from '../utils/jwt.js';
 import { error } from '../utils/errors.js';
+import { queryFirst } from '../db/connection.js';
 
 /**
  * 必須登入
@@ -23,8 +24,14 @@ export function requireAuth() {
             return error(c, 'TOKEN_INVALID', 'Token 無效或已過期', 401);
         }
 
+        // 驗證使用者是否確實存在於資料庫（防範資料庫重置、刪除導致 Token 殘留但用戶不存在的狀況）
+        const userExists = queryFirst('SELECT id, role FROM users WHERE id = ?', [payload.id]);
+        if (!userExists) {
+            return error(c, 'UNAUTHORIZED', '使用者不存在，請重新登入', 401);
+        }
+
         // 把使用者資訊放到 context
-        c.set('user', payload);
+        c.set('user', { ...payload, role: userExists.role });
         await next();
     };
 }
