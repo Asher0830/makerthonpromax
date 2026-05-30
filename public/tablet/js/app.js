@@ -651,21 +651,10 @@ class TabletApp {
   async onSimulatePayment() {
     if (!this.currentOrder || !this.currentOrder.orderId) return;
     try {
-      // Call dev endpoint to pay and immediately dispense
-      const res = await window.tabletAPI.processPaymentAndDispense(this.currentOrder.orderId);
-      // Keep polling in the trigger state so latest-result can drive the animation
+      // 呼叫常規模擬付款，使訂單與機台處於 WAITING_FOR_TRIGGER 狀態，真正等待實體旋鈕轉動！
+      const res = await window.tabletAPI.simulatePayment(this.currentOrder.orderId);
       if (res) {
         this.setState('WAITING_TRIGGER');
-      } else {
-        try {
-          const status = await window.tabletAPI.getMachineStatus(this.machineId);
-          if (status) {
-            this.machineStatus = status;
-            this.render();
-          }
-        } catch (e) {
-          // ignore
-        }
       }
     } catch (err) {
       console.warn('Simulate payment failed:', err);

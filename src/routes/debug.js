@@ -91,6 +91,47 @@ debug.post('/machine/trigger-knob', async (c) => {
     }
 });
 
+// 5.5. POST /machine/trigger-mock — 平板輔助出餐專用模擬端點 (觸發後端真實抽獎與MQTT開門，並回傳格式化結果)
+debug.post('/machine/trigger-mock', async (c) => {
+    const body = await c.req.json();
+    const { machineId } = body;
+
+    const machine = queryFirst('SELECT * FROM machines WHERE id = ?', [machineId]);
+    if (!machine) {
+        return c.json({ success: false, error: '機台不存在' }, 404);
+    }
+
+    try {
+        const response = await fetch(`http://localhost:${process.env.PORT || 3000}/api/v1/machines/trigger`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                machine_id: machineId,
+                action: 'KNOB_TURNED',
+                secret_key: machine.secret_key
+            })
+        });
+        const resData = await response.json();
+        if (resData && resData.success && resData.data) {
+            const d = resData.data;
+            return c.json({
+                success: true,
+                result: {
+                    orderId: d.order_id,
+                    status: d.status,
+                    compartment: d.won.compartment_index,
+                    productName: d.won.product_name,
+                    category: { bento: '便當', bread: '麵包', vegetable: '蔬菜', other: '其他' }[d.won.category] || d.won.category,
+                    orderType: 'machine_gacha'
+                }
+            });
+        }
+        return c.json({ success: false, error: resData.error?.message || '模擬抽獎失敗' }, 400);
+    } catch (err) {
+        return c.json({ success: false, error: err.message }, 500);
+    }
+});
+
 // 6. POST /db/reset — 重設並重新 Seed 資料庫 [SECURITY NOTE: 黑客松安全防護已將此端點永久註解禁用，避免資料意外清空！]
 /*
 debug.post('/db/reset', async (c) => {

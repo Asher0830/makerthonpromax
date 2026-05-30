@@ -144,6 +144,11 @@ class TabletAPI {
     return this._request('POST', '/api/v1/payment/mock/pay-and-dispense', { order_id: orderId });
   }
 
+  /* ── Simulate standard payment (Mock) ── */
+  simulatePayment(orderId) {
+    return this._request('POST', '/api/v1/payment/mock/pay', { order_id: orderId });
+  }
+
   /* ── Get latest gacha result ── */
   async getLatestResult(machineId) {
     const res = await this._request('GET', `/api/v1/machines/${machineId}/latest-result`);
